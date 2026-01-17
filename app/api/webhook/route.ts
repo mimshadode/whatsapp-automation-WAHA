@@ -32,22 +32,77 @@ export async function POST(req: Request) {
     }
 
     const chatId = payload.from;
+    const message = payload.body || ''; 
+    
+    console.log(`[Webhook] INCOMING -> from: ${chatId}, body: "${message}"`); // Log immediately for debug
     
     if (!chatId) {
         console.error('[Webhook] Error: payload.from is missing/undefined');
         return NextResponse.json({ status: 'error', reason: 'missing_chat_id' }, { status: 400 });
     }
 
-    // Ignore group messages (optional, depending on requirement, but usually safer for bots)
+    // --- GROUP & MENTION LOGIC ---
     if (chatId.includes('@g.us')) {
-        console.log('[Webhook] Request ignored (group message)');
-        return NextResponse.json({ status: 'ignored' });
+        const envAllowed = process.env.ALLOWED_GROUPS || '';
+        // Filter out empty strings to avoid [""] when env is empty
+        const allowedGroups = envAllowed.split(',').map(g => g.trim()).filter(g => g.length > 0);
+        const botNumber = process.env.BOT_PHONE_NUMBER;
+
+        console.log(`[Webhook] Group Check: ID=${chatId}. Allowed=${JSON.stringify(allowedGroups)}. BotNum=${botNumber}`);
+
+        // 1. Check if group is allowed (Whitelist)
+        // Only enforce if allowedGroups has items
+        if (allowedGroups.length > 0 && !allowedGroups.includes(chatId)) {
+            console.log(`[Webhook] Ignored group ${chatId} (not in allowed list)`);
+            return NextResponse.json({ status: 'ignored', reason: 'group_not_allowed' });
+        }
+
+        // 2. Check if Bot is Mentioned
+        // WAHA payloads typically have mentionedIds in payload.mentionedIds or payload._data.mentionedIds
+        const mentionedIds: string[] = payload.mentionedIds || (payload._data && payload._data.mentionedIds) || [];
+        const botId = botNumber + '@s.whatsapp.net';
+        
+        // Debug mentions
+        console.log(`[Webhook] Mentions: ${JSON.stringify(mentionedIds)}. Looking for: ${botId}`);
+
+        let isMentioned = mentionedIds.includes(botId);
+
+        // Fallback: Check if message body contains @BotNumber OR @Alias
+        // This handles cases where metadata is missing or user tags by Contact Name
+        if (!isMentioned) {
+             const aliases = (process.env.BOT_MENTION_NAMES || '').split(',').map(n => n.trim().toLowerCase()).filter(n => n.length > 0);
+             const lowerMsg = message.toLowerCase();
+             
+             // Check @BotNumber
+             const botLid = process.env.BOT_LID;
+             if (message.includes('@' + botNumber) || (botLid && message.includes('@' + botLid))) {
+                 console.log(`[Webhook] Fallback: Mention found via Phone Number or LID.`);
+                 isMentioned = true;
+             } 
+             // Check Aliases
+             else {
+                 for (const alias of aliases) {
+                     if (lowerMsg.includes('@' + alias)) {
+                         console.log(`[Webhook] Fallback: Mention found via Alias '@${alias}'.`);
+                         isMentioned = true;
+                         break;
+                     }
+                 }
+             }
+        }
+
+        if (!isMentioned) {
+             console.log(`[Webhook] Ignored group ${chatId} (bot not mentioned)`);
+             return NextResponse.json({ status: 'ignored', reason: 'not_mentioned' });
+        }
+
+        console.log(`[Webhook] Group Message Accepted: Mentioned in allowed group.`);
     }
     
     // Ensure message is a string
-    const message = payload.body || '';
+    // const message = payload.body || ''; // Moved up
     
-    console.log(`[Webhook] INCOMING -> from: ${chatId}, body: ${message}`);
+    // console.log(`[Webhook] INCOMING -> from: ${chatId}, body: ${message}`); // Moved to top
 
     // Session Management (Database + Cache)
     console.log(`[Webhook] Fetching session for ${chatId}...`);
@@ -81,8 +136,19 @@ export async function POST(req: Request) {
     // Save assistant message
     await sessionManager.saveMessage(chatId, 'assistant', reply);
 
-    console.log(`[Webhook] Sending response via WAHA to ${chatId}...`);
-    await waha.sendText(chatId, reply);
+    // Determine mentions for reply
+    const mentions: string[] = [];
+    if (chatId.includes('@g.us')) {
+        // In groups, mention the sender
+        // Payload 'participant' is the sender in a group
+        const sender = payload.participant || payload._data?.participant;
+        if (sender) {
+            mentions.push(sender);
+        }
+    }
+
+    console.log(`[Webhook] Sending response via WAHA to ${chatId}... (Mentions: ${mentions.join(', ')})`);
+    await waha.sendText(chatId, reply, mentions);
     console.log(`[Webhook] Response sent successfully.`);
 
 

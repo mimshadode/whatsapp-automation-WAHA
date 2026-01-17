@@ -77,7 +77,7 @@ export class WAHAClient {
   /**
    * Send text with simulated human behavior (typing indicator + random delay)
    */
-  async sendText(chatId: string, text: string) {
+  async sendText(chatId: string, text: string, mentions?: string[]) {
     try {
       // 1. Start typing
       await this.startTyping(chatId);
@@ -92,12 +92,18 @@ export class WAHAClient {
       await new Promise(resolve => setTimeout(resolve, delay));
 
       // 3. Send message
-      const response = await this.client.post('/api/sendText', {
+      const payload: any = {
         session: this.sessionName,
         chatId,
         text,
         linkPreview: false // Disable link previews as requested
-      });
+      };
+
+      if (mentions && mentions.length > 0) {
+        payload.mentions = mentions;
+      }
+
+      const response = await this.client.post('/api/sendText', payload);
 
       // 4. Stop typing (usually automatic after send, but good practice to be explicit if needed, 
       // though WAHA/WhatsApp might handle this. 'paused' signals stop typing)
