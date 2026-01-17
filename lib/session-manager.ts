@@ -71,7 +71,7 @@ export class SessionManager {
       data: {
         sessionId: session.id,
         messageType: role,
-        messageContent: content,
+        messageContent: content || '',
       }
     });
   }

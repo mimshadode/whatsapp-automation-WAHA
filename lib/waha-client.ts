@@ -34,7 +34,39 @@ export class WAHAClient {
     }
   }
 
-  async startTyping(chatId: string) {
+  /**
+   * Mark all messages in a chat as seen (read)
+   */
+  /**
+   * Mark specific message as seen (read)
+   */
+  async sendSeen(chatId: string, messageId?: string) {
+    try {
+      // Use the correct endpoint for marking messages as read with messageId
+      const url = '/api/sendSeen';
+      const payload: any = {
+        session: this.sessionName,
+        chatId: chatId,
+      };
+
+      if (messageId) {
+        payload.messageIds = [messageId];
+      }
+
+      // console.log('[WAHA Client] Sending seen payload:', JSON.stringify(payload));
+      await this.client.post(url, payload);
+    } catch (error: any) {
+      console.error('[WAHA Client] Error marking chat as seen:', chatId, error.message);
+      if (error.response) {
+        console.error('[WAHA Client] Error Details:', JSON.stringify(error.response.data));
+      }
+      // Non-blocking error
+    }
+  }
+
+  async startTyping(chatId: string, messageId?: string) {
+    // It's natural to mark as seen before typing
+    await this.sendSeen(chatId, messageId);
     await this.setPresence('typing', chatId);
   }
 

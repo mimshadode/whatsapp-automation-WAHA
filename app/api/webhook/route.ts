@@ -16,22 +16,36 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
-    console.log('[Webhook] Body parsed successfully');
+    // Debugging: Log full payload to understand NOWEB structure
+    // console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
+
     const payload = body.payload;
 
-    if (!payload || payload.fromMe || payload.from === 'status@broadcast') {
-        console.log(`[Webhook] Request ignored (reason: ${!payload ? 'no payload' : payload.fromMe ? 'fromMe' : 'status update'})`);
+    if (!payload) {
+        console.log('[Webhook] No payload found in body');
+        return NextResponse.json({ status: 'ignored', reason: 'no_payload' });
+    }
+
+    if (payload.fromMe || payload.from === 'status@broadcast') {
+        // console.log(`[Webhook] Request ignored (fromMe or status)`);
         return NextResponse.json({ status: 'ignored' });
     }
 
     const chatId = payload.from;
     
+    if (!chatId) {
+        console.error('[Webhook] Error: payload.from is missing/undefined');
+        return NextResponse.json({ status: 'error', reason: 'missing_chat_id' }, { status: 400 });
+    }
+
     // Ignore group messages (optional, depending on requirement, but usually safer for bots)
     if (chatId.includes('@g.us')) {
         console.log('[Webhook] Request ignored (group message)');
         return NextResponse.json({ status: 'ignored' });
     }
-    const message = payload.body;
+    
+    // Ensure message is a string
+    const message = payload.body || '';
     
     console.log(`[Webhook] INCOMING -> from: ${chatId}, body: ${message}`);
 
@@ -52,10 +66,14 @@ export async function POST(req: Request) {
 
 
     // --- AI ORCHESTRATION ---
-    console.log(`[Webhook] Dispatching to AI Orchestrator...`);
+    // Extract messageId from payload (WAHA NOWEB uses 'id' for the message ID)
+    const messageId = payload.id;
+
+    console.log(`[Webhook] Dispatching to AI Orchestrator... (MsgID: ${messageId || 'none'})`);
     const reply = await orchestrator.handleMessage(message, {
         phoneNumber: chatId,
-        sessionState: session.sessionState
+        sessionState: session.sessionState,
+        messageId: messageId
     });
 
     console.log(`[Webhook] AI Replied: ${reply.substring(0, 50)}...`);

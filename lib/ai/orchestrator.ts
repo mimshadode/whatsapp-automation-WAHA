@@ -17,8 +17,9 @@ export class AIOrchestrator {
     this.tools.set(BotIntent.CHECK_SCHEDULE, new ScheduleCheckerTool());
   }
 
-  async handleMessage(message: string, context: ToolContext): Promise<string> {
+  async handleMessage(message: string, context: ToolContext & { messageId?: string }): Promise<string> {
     const chatId = context.phoneNumber; // This is the chatId
+    const messageId = context.messageId;
 
     const intent = await this.detectIntent(message);
 
@@ -30,7 +31,7 @@ export class AIOrchestrator {
       const tool = this.tools.get(intent)!;
       
       // Notify user that we are working on it (Long running process)
-      await this.waha.startTyping(chatId);
+      await this.waha.startTyping(chatId, messageId);
       
       const response = await tool.execute(message, context);
       
