@@ -1,17 +1,18 @@
 import { AITool, ToolContext, ToolResponse } from '../types';
 import { BiznetGioClient } from '@/lib/biznetgio-client';
-import { GoogleFormsOAuthClient, FormQuestion } from '@/lib/google-forms-oauth-client';
+import { GoogleAppsScriptClient } from '@/lib/google-apps-script';
+import { FormQuestion } from '@/lib/google-forms-oauth-client';
 
 export class GoogleFormCreatorTool implements AITool {
   name = 'Google Form Creator';
   description = 'Membantu membuat Google Form secara otomatis berdasarkan permintaan pengguna';
   
   private biznet: BiznetGioClient;
-  private forms: GoogleFormsOAuthClient;
+  private gas: GoogleAppsScriptClient;
 
   constructor() {
     this.biznet = new BiznetGioClient();
-    this.forms = new GoogleFormsOAuthClient();
+    this.gas = new GoogleAppsScriptClient();
   }
 
   getSystemPrompt(): string {
@@ -155,11 +156,14 @@ IMPORTANT:
       console.log('[GoogleFormTool] Description:', data.description || '(none)');
       console.log('[GoogleFormTool] Questions:', JSON.stringify(questions, null, 2));
 
-      // 5. Create the form with description if provided
-      const settings = data.description ? { description: data.description } : undefined;
-      const result = await this.forms.createForm(data.title, questions, settings);
+      // 5. Create the form and sheet using GAS
+      const result = await this.gas.createFormAndSheet({
+        title: data.title,
+        description: data.description,
+        questions: questions
+      });
 
-      console.log('[GoogleFormTool] Form created successfully:', result.formId);
+      console.log('[GoogleFormTool] Form & Sheet created successfully:', result.formId, result.spreadsheetId);
 
       // 6. Format response
       const questionList = questions.map((q, i) => 
@@ -168,11 +172,13 @@ IMPORTANT:
 
       return {
         success: true,
-        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *${result.title}*\n\n📝 Pertanyaan:\n${questionList}\n\n🔗 *Link Form:*\n${result.url}\n\n✏️ *Edit Form:*\n${result.editUrl}\n\nAda lagi yang bisa saya bantu?`,
+        reply: `✅ *Form & Spreadsheet Berhasil Dibuat!*\n\n📄 *${result.title}*\n\n📝 Pertanyaan:\n${questionList}\n\n🔗 *Link Form:*\n${result.url}\n\n📊 *Link Spreadsheet (Respons):*\n${result.spreadsheetUrl}\n\n✏️ *Edit Form:*\n${result.editUrl}\n\nAda lagi yang bisa saya bantu?`,
         newState: { 
           lastFormId: result.formId,
           lastFormUrl: result.url,
-          lastFormEditUrl: result.editUrl
+          lastFormEditUrl: result.editUrl,
+          lastSpreadsheetId: result.spreadsheetId,
+          lastSpreadsheetUrl: result.spreadsheetUrl
         }
       };
 
