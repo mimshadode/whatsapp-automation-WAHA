@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model WhatsappSession {
+  id              String           @id @default(uuid())
+  phoneNumber     String           @unique
+  sessionState    Json             @default("{}")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  lastActivity    DateTime         @default(now())
+  conversations   Conversation[]
+  submissions     FormSubmission[]
+  llmInteractions LlmInteraction[]
+}
+
+model Conversation {
+  id             String          @id @default(uuid())
+  sessionId      String
+  messageType    String
+  messageContent String
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+  session        WhatsappSession @relation(fields: [sessionId], references: [id])
+}
+
+model FormSubmission {
+  id               String          @id @default(uuid())
+  sessionId        String
+  formId           String
+  formName         String?
+  extractedData    Json
+  submissionStatus String
+  googleResponseId String?
+  errorMessage     String?
+  createdAt        DateTime        @default(now())
+  submittedAt      DateTime?
+  session          WhatsappSession @relation(fields: [sessionId], references: [id])
+}
+
+model LlmInteraction {
+  id             String          @id @default(uuid())
+  sessionId      String
+  prompt         String
+  response       String
+  model          String?
+  tokensUsed     Int?
+  processingTime Int?
+  createdAt      DateTime        @default(now())
+  session        WhatsappSession @relation(fields: [sessionId], references: [id])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  eventType      String
+  entityType     String?
+  entityId       String?
+  userIdentifier String?
+  eventData      Json?
+  createdAt      DateTime @default(now())
+}

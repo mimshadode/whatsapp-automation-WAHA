@@ -1,0 +1,24 @@
+export interface AITool {
+  name: string;
+  description: string;
+  getSystemPrompt(): string;
+  execute(query: string, context: ToolContext): Promise<ToolResponse>;
+}
+
+export interface ToolContext {
+  phoneNumber: string;
+  sessionState: any;
+}
+
+export interface ToolResponse {
+  success: boolean;
+  reply: string;
+  newState?: any;
+}
+
+export enum BotIntent {
+  IDENTITY = 'IDENTITY',
+  CREATE_FORM = 'CREATE_FORM',
+  CHECK_SCHEDULE = 'CHECK_SCHEDULE',
+  UNKNOWN = 'UNKNOWN'
+}

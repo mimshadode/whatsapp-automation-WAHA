@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # Database Layer
+  postgres:
+    image: postgres:15-alpine
+    container_name: whatsapp_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_DB: whatsapp_automation
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Cache Layer
+  redis:
+    image: redis:7-alpine
+    container_name: whatsapp_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # WhatsApp API Layer
+  waha:
+    image: devlikeapro/waha:chrome
+    container_name: whatsapp_waha
+    restart: always
+    ports:
+      - "5000:3000"
+    environment:
+      # Configurations from previous successful setup
+      - WAHA_API_KEY=0f1989b27ec64181b10f1af89376fd91
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=6e2496bc02ea48dd84264778ca21d989
+      - WHATSAPP_SWAGGER_USERNAME=admin
+      - WHATSAPP_SWAGGER_PASSWORD=6e2496bc02ea48dd84264778ca21d989
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WHATSAPP_HOOK_URL=http://192.168.0.118:3001/api/webhook
+      - WHATSAPP_HOOK_EVENTS=message,session.status
+    volumes:
+      - waha_data:/app/.wwebjs_auth
+
+volumes:
+  postgres_data:
+  redis_data:
+  waha_data:
