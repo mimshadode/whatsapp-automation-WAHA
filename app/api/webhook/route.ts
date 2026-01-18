@@ -17,7 +17,13 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     // Debugging: Log full payload to understand NOWEB structure
-    // console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
+    console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
+
+    // Filter events: Only process 'message' events
+    if (body.event && body.event !== 'message') {
+        console.log(`[Webhook] Ignoring event: ${body.event}`);
+        return NextResponse.json({ status: 'ignored', reason: 'non_message_event' });
+    }
 
     const payload = body.payload;
 
