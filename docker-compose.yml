@@ -36,13 +36,13 @@ services:
       # Configurations from previous successful setup
       - WAHA_API_KEY=0f1989b27ec64181b10f1af89376fd91
       - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=6e2496bc02ea48dd84264778ca21d989
+      - WAHA_DASHBOARD_PASSWORD=ca79f123edc24db2829e6c823e522d1d
       - WHATSAPP_SWAGGER_USERNAME=admin
-      - WHATSAPP_SWAGGER_PASSWORD=6e2496bc02ea48dd84264778ca21d989
+      - WHATSAPP_SWAGGER_PASSWORD=ca79f123edc24db2829e6c823e522d1d
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WHATSAPP_NOWEB_STORE_ENABLED=True
       - WHATSAPP_NOWEB_STORE_FULL_SYNC=True
-      - WHATSAPP_HOOK_URL=http://192.168.0.118:3001/api/webhook
+      - WHATSAPP_HOOK_URL=https://whatsapp-automation-waha.vercel.app/api/webhook
       - WHATSAPP_HOOK_EVENTS=message,session.status
     volumes:
       - waha_data:/app/.wwebjs_auth
