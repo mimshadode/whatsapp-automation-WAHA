@@ -30,13 +30,13 @@ export class AIOrchestrator {
     if (this.tools.has(intent)) {
       const tool = this.tools.get(intent)!;
       
-      // Notify user that we are working on it (Long running process)
-      await this.waha.startTyping(chatId, messageId);
+      // Dynamic Acknowledgment for CREATE_FORM
+      if (intent === BotIntent.CREATE_FORM) {
+        await this.sendAcknowledgment(message, context);
+      }
       
       const response = await tool.execute(message, context);
       
-      await this.waha.stopTyping(chatId);
-
       return response.reply;
     }
 
@@ -47,7 +47,7 @@ export class AIOrchestrator {
     const prompt = `Analyze the user message and identify the intent.
     
 INTENTS:
-- IDENTITY: Asking who you are, what you can do, greeting.
+- IDENTITY: Asking who you are, what you can do, greeting, or calling you by name (John, Joni, Jon Jon).
 - CREATE_FORM: Requesting to create a form or survey.
 - CHECK_SCHEDULE: Asking about schedule, calendar, or agenda.
 - UNKNOWN: Anything else.
@@ -66,22 +66,46 @@ OUTPUT: Only output the INTENT NAME (e.g. CREATE_FORM).`;
     return BotIntent.UNKNOWN;
   }
 
-private getIdentityResponse(): string {
-  return (
-    "Halo! 👋 Saya adalah asisten berbasis kecerdasan buatan yang dapat membantu Anda:\n" +
-    "• Membuat Google Form secara otomatis\n" +
-    "• Mengecek jadwal atau agenda dari Google Calendar\n\n" +
-    "Silakan beri tahu apa yang ingin Anda buat atau cek hari ini. 😊"
-  );
-}
+  private async sendAcknowledgment(message: string, context: ToolContext): Promise<void> {
+    try {
+      const name = (context.senderName && context.senderName !== '.') ? context.senderName : '';
+      
+      const prompt = `Based on the user message, extract the intended Google Form title and generate a short, friendly, and informal acknowledgment in Indonesian.
+      
+RULES:
+1. If the user provided a name ("${name}"), use it.
+2. If the name is empty or just ".", use a friendly, non-formal, and non-stiff greeting/panggilan (like "Kak", "Sobat", "Halo", etc).
+3. Extract the form title. If not clear, use a generic term like "form-nya".
+4. The output must be ONLY the response string.
+5. Format: "Baik [Nama/Sapaan], saya akan bantu buatkan form [Judul Form] ya. Mohon tunggu sebentar..." or similar dynamic variation with friendly tone.
 
-private getOutOfScopeResponse(): string {
-  return (
-    "Maaf 🙏🏽, saya hanya dapat membantu terkait:\n" +
-    "• Pembuatan Google Form\n" +
-    "• Pengecekan jadwal Google Calendar\n\n" +
-    "Permintaan di luar itu belum dapat saya proses."
-  );
-}
+USER MESSAGE: "${message}"`;
 
+      const ackResponse = await this.biznet.generateSpecificResponse(prompt, message);
+      
+      // Send the acknowledgment immediately
+      await this.waha.sendText(context.phoneNumber, ackResponse.trim());
+    } catch (error) {
+      console.error('[AIOrchestrator] Error sending acknowledgment:', error);
+      // Fail silently and let the main flow continue
+    }
+  }
+
+  private getIdentityResponse(): string {
+    return (
+      "Halo! 👋 Saya *John* (bisa dipanggil Joni juga), asisten berbasis kecerdasan buatan yang dapat membantu Anda:\n" +
+      "• Membuat Google Form secara otomatis\n" +
+      "• Mengecek jadwal atau agenda dari Google Calendar\n\n" +
+      "Silakan beri tahu apa yang ingin Anda buat atau cek hari ini. 😊"
+    );
+  }
+
+  private getOutOfScopeResponse(): string {
+    return (
+      "Maaf 🙏🏽, saya hanya dapat membantu terkait:\n" +
+      "• Pembuatan Google Form\n" +
+      "• Pengecekan jadwal Google Calendar\n\n" +
+      "Permintaan di luar itu belum dapat saya proses."
+    );
+  }
 }

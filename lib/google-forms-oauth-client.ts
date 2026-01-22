@@ -3,9 +3,10 @@ import { OAuth2Client } from 'google-auth-library';
 
 export interface FormQuestion {
   title: string;
-  type: 'text' | 'paragraph' | 'choice' | 'radio' | 'checkbox' | 'dropdown' | 'scale' | 'date' | 'time';
+  type: 'text' | 'paragraph' | 'choice' | 'radio' | 'checkbox' | 'dropdown' | 'scale' | 'date' | 'time' | 'section';
   options?: string[];
   required?: boolean;
+  description?: string;
   // For scale questions
   low?: number;
   high?: number;
@@ -15,7 +16,8 @@ export interface FormQuestion {
 
 export interface FormSettings {
   description?: string;
-  collectEmail?: boolean;
+  collectEmail?: boolean; // Legacy simplified flag
+  emailCollectionType?: 'EMAIL_COLLECTION_TYPE_UNSPECIFIED' | 'DO_NOT_COLLECT' | 'VERIFIED' | 'RESPONDER_INPUT';
   limitOneResponse?: boolean;
   isQuiz?: boolean;
   confirmationMessage?: string;
@@ -97,19 +99,26 @@ export class GoogleFormsOAuthClient {
       // 2. Build requests for questions
       const requests: any[] = [];
 
-      // Add questions
       questions.forEach((q, index) => {
+        const item: any = {
+          title: q.title,
+          description: q.description,
+        };
+
+        if (q.type === 'section') {
+          item.pageBreakItem = {};
+        } else {
+          item.questionItem = {
+            question: {
+              required: q.required || false,
+              ...this.buildQuestionConfig(q)
+            }
+          };
+        }
+
         requests.push({
           createItem: {
-            item: {
-              title: q.title,
-              questionItem: {
-                question: {
-                  required: q.required || false,
-                  ...this.buildQuestionConfig(q)
-                }
-              }
-            },
+            item: item,
             location: { index }
           }
         });
@@ -125,6 +134,27 @@ export class GoogleFormsOAuthClient {
             updateMask: 'description'
           }
         });
+      }
+
+      // Add Settings (Email Collection, etc.)
+      if (settings?.emailCollectionType || settings?.collectEmail !== undefined) {
+        let collectionType = settings.emailCollectionType;
+        
+        // Map simplified collectEmail flag to API enum if type not specified
+        if (!collectionType && settings.collectEmail !== undefined) {
+          collectionType = settings.collectEmail ? 'VERIFIED' : 'DO_NOT_COLLECT';
+        }
+
+        if (collectionType) {
+          requests.push({
+            updateSettings: {
+              settings: {
+                emailCollectionType: collectionType
+              },
+              updateMask: 'emailCollectionType'
+            }
+          });
+        }
       }
 
       // Note: Settings like collectEmail, limitOneResponse, etc. 

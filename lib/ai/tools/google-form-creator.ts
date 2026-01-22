@@ -1,18 +1,17 @@
 import { AITool, ToolContext, ToolResponse } from '../types';
 import { BiznetGioClient } from '@/lib/biznetgio-client';
-import { GoogleAppsScriptClient } from '@/lib/google-apps-script';
-import { FormQuestion } from '@/lib/google-forms-oauth-client';
+import { GoogleFormsOAuthClient, FormQuestion } from '@/lib/google-forms-oauth-client';
 
 export class GoogleFormCreatorTool implements AITool {
   name = 'Google Form Creator';
   description = 'Membantu membuat Google Form secara otomatis berdasarkan permintaan pengguna';
   
   private biznet: BiznetGioClient;
-  private gas: GoogleAppsScriptClient;
+  private googleForms: GoogleFormsOAuthClient;
 
   constructor() {
     this.biznet = new BiznetGioClient();
-    this.gas = new GoogleAppsScriptClient();
+    this.googleForms = new GoogleFormsOAuthClient();
   }
 
   getSystemPrompt(): string {
@@ -22,29 +21,49 @@ INSTRUCTIONS:
 1. Analyze the user's request to identify:
    - FORM TITLE
    - FORM DESCRIPTION (if mentioned with keywords: "deskripsi", "keterangan", "penjelasan", "sertakan")
+   - EMAIL COLLECTION SETTING (if mentioned, map to: "VERIFIED", "RESPONDER_INPUT", or "DO_NOT_COLLECT")
    - LIST OF QUESTIONS/FIELDS
    - QUESTION TYPE for each field
    - OPTIONS (if applicable for choice/radio/checkbox/dropdown)
    - Whether field is REQUIRED
 
-2. Question types available:
+2. SPECIAL CASE - EXTRACTED DOCUMENT TEXT:
+   If the user message contains "[TEKS DARI MEDIA]:" or "[TEKS DARI FILE YANG DIBALAS]:", this means the text was extracted from a document (PDF, image, etc).
+   In this case:
+   - Analyze the extracted text carefully to identify form fields, questions, or survey items.
+   - Look for patterns like numbered lists, bullets, or labeled fields (e.g., "Nama:", "Email:", etc.).
+   - If the document is a questionnaire or survey ("Angket"), extract each question.
+   - For table-like questions (e.g. "SS S KS TS" or "Sangat Setuju" columns), identify the question text and use "radio" or "scale" type.
+   - If you see a list of statements with agreement columns, create a "radio" question for each statement with options ["Sangat Setuju", "Setuju", "Kurang Setuju", "Tidak Setuju", "Sangat Tidak Setuju"].
+   - If the document is a registration form template, identify all input fields.
+   - ALWAYS prioritize finding the title from the document text itself. Look for:
+     * Headers/Big text at the top
+     * Phrases like "Judul Penelitian:", "Tema:", "Nama Kegiatan:", "Lampiran -"
+     * If a research title is mentioned in the introductory text (e.g. "Penelitian dengan judul X"), use that.
+   - If NO clear title is found in the text, use the filename (without extension).
+   - EXTRACT FORM DESCRIPTION: Look for introductory paragraphs, "Kata Pengantar", or greetings (e.g., "Assalamu’alaikum", "Dengan hormat"). identifying the text explaining the purpose of the research/form. If found, use this FULL text as the form description.
+   - ALWAYS output valid JSON even if the document is unclear - make your best guess.
+
+3. Question types available:
    - "text" = Short answer (nama, email, nomor telepon)
-   - "paragraph" = Long answer (alamat, deskripsi, saran)
-   - "radio" = Multiple choice, single selection (pilih satu)
+   - "paragraph" = Long answer (alamat, deskripsi, saran, pertanyaan esai)
+   - "radio" = Multiple choice, single selection (pilih satu, skala likert)
    - "checkbox" = Multiple choice, multiple selection (pilih beberapa)
    - "dropdown" = Dropdown menu
    - "scale" = Linear scale (rating 1-5, 1-10, etc)
    - "date" = Date picker
    - "time" = Time picker
 
-3. Output STRICTLY in this JSON format:
+4. Output STRICTLY in this JSON format:
 {
   "title": "Form Title Here",
   "description": "Optional form description/explanation",
+  "emailCollectionType": "VERIFIED|RESPONDER_INPUT|DO_NOT_COLLECT",
   "questions": [
     {
-      "title": "Question text",
-      "type": "text|paragraph|radio|checkbox|dropdown|scale|date|time",
+      "title": "Question text or Section Title",
+      "type": "text|paragraph|radio|checkbox|dropdown|scale|date|time|section",
+      "description": "Optional question or section description",
       "required": true|false,
       "options": ["option1", "option2"],
       "low": 1,
@@ -68,37 +87,28 @@ Output:
   ]
 }
 
-User: "Buatkan formulir pendaftaran makan kerupuk tingkat desa sertakan deskripsi 'ini adalah lomba menyenangkan'"
+User: "[TEKS DARI MEDIA]: Nama responden: ... NIM: ... Judul penelitian: ... 1. Bagaimana pendapat Anda tentang X? 2. Apakah Anda setuju dengan Y?"
 Output:
 {
-  "title": "Formulir Pendaftaran Makan Kerupuk Tingkat Desa",
-  "description": "Ini adalah lomba menyenangkan",
+  "title": "Form Penelitian",
   "questions": [
-    {"title": "Nama Peserta", "type": "text", "required": true},
-    {"title": "Desa Asal", "type": "text", "required": true}
-  ]
-}
-
-User: "Form survey kepuasan dengan rating 1-5 dan saran"
-Output:
-{
-  "title": "Survey Kepuasan",
-  "questions": [
-    {"title": "Rating Kepuasan", "type": "scale", "required": true, "low": 1, "high": 5, "lowLabel": "Tidak Puas", "highLabel": "Sangat Puas"},
-    {"title": "Saran dan Masukan", "type": "paragraph", "required": false}
+    {"title": "Nama Responden", "type": "text", "required": true},
+    {"title": "NIM", "type": "text", "required": true},
+    {"title": "Bagaimana pendapat Anda tentang X?", "type": "paragraph", "required": true},
+    {"title": "Apakah Anda setuju dengan Y?", "type": "radio", "required": true, "options": ["Sangat Setuju", "Setuju", "Netral", "Tidak Setuju", "Sangat Tidak Setuju"]}
   ]
 }
 
 IMPORTANT:
 - Only output valid JSON
-- If unclear, ask for clarification
+- If analyzing extracted document text, ALWAYS generate a form based on your best interpretation
 - Infer sensible defaults (e.g., nama/email = required, saran = not required)
-- For choice questions without explicit options, provide sensible defaults`;
+- For choice questions without explicit options, provide sensible defaults (like Likert scale for opinions)`;
   }
 
   async execute(query: string, context: ToolContext): Promise<ToolResponse> {
     try {
-      console.log('[GoogleFormTool] Processing request:', query);
+      console.log(`[GoogleFormTool] Processing request (Length: ${query.length} chars). Preview: ${query.substring(0, 50)}...`);
       
       // 1. Get structured data from AI
       const aiResponse = await this.biznet.generateSpecificResponse(
@@ -156,29 +166,30 @@ IMPORTANT:
       console.log('[GoogleFormTool] Description:', data.description || '(none)');
       console.log('[GoogleFormTool] Questions:', JSON.stringify(questions, null, 2));
 
-      // 5. Create the form and sheet using GAS
-      const result = await this.gas.createFormAndSheet({
-        title: data.title,
-        description: data.description,
-        questions: questions
-      });
+      // 5. Create the form using OAuth Client
+      const result = await this.googleForms.createForm(
+        data.title,
+        questions,
+        { 
+          description: data.description,
+          emailCollectionType: data.emailCollectionType
+        }
+      );
 
-      console.log('[GoogleFormTool] Form & Sheet created successfully:', result.formId, result.spreadsheetId);
+      console.log('[GoogleFormTool] Form created successfully:', result.formId);
 
       // 6. Format response
-      const questionList = questions.map((q, i) => 
-        `${i + 1}. ${q.title} (${this.getQuestionTypeLabel(q.type)}${q.required ? ', wajib diisi' : ''})`
-      ).join('\n');
+      // 6. Format response (Show only total count as requested)
+      const questionCount = questions.length;
+      const descriptionTxt = data.description ? `\n\n📝 *Deskripsi:* ${data.description}` : '';
 
       return {
         success: true,
-        reply: `✅ *Form & Spreadsheet Berhasil Dibuat!*\n\n📄 *${result.title}*\n\n📝 Pertanyaan:\n${questionList}\n\n🔗 *Link Form:*\n${result.url}\n\n📊 *Link Spreadsheet (Respons):*\n${result.spreadsheetUrl}\n\n✏️ *Edit Form:*\n${result.editUrl}\n\nAda lagi yang bisa saya bantu?`,
+        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan\n\n🔗 *Link Form:*\n${result.url}\n\n✏️ *Edit Form:*\n${result.editUrl}\n\nAda lagi yang bisa saya bantu?`,
         newState: { 
           lastFormId: result.formId,
           lastFormUrl: result.url,
-          lastFormEditUrl: result.editUrl,
-          lastSpreadsheetId: result.spreadsheetId,
-          lastSpreadsheetUrl: result.spreadsheetUrl
+          lastFormEditUrl: result.editUrl
         }
       };
 
@@ -213,7 +224,8 @@ IMPORTANT:
       'dropdown': 'dropdown',
       'scale': 'scale',
       'date': 'date',
-      'time': 'time'
+      'time': 'time',
+      'section': 'section'
     };
 
     return typeMap[type.toLowerCase()] || 'text';
@@ -232,7 +244,8 @@ IMPORTANT:
       'scale': 'skala linear',
       'date': 'tanggal',
       'time': 'waktu',
-      'choice': 'pilihan ganda'
+      'choice': 'pilihan ganda',
+      'section': 'bagian baru'
     };
 
     return labels[type] || type;

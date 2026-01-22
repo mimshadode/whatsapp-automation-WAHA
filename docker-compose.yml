@@ -34,7 +34,7 @@ services:
       - "5000:3000"
     environment:
       # Configurations from previous successful setup
-      - WAHA_API_KEY=0f1989b27ec64181b10f1af89376fd91
+      - WAHA_API_KEY=75b08331d7774ee5850f711f9b2c7206
       - WAHA_DASHBOARD_USERNAME=admin
       - WAHA_DASHBOARD_PASSWORD=ca79f123edc24db2829e6c823e522d1d
       - WHATSAPP_SWAGGER_USERNAME=admin
@@ -42,12 +42,18 @@ services:
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
       - WHATSAPP_NOWEB_STORE_ENABLED=true
       - WHATSAPP_NOWEB_STORE_FULL_SYNC=true
-      - WHATSAPP_HOOK_URL=https://whatsapp-automation-waha.vercel.app/api/webhook
+      - WHATSAPP_HOOK_URL=http://host.docker.internal:3001/api/webhook
       - WHATSAPP_HOOK_EVENTS=message,session.status
+      # Media Storage Configuration
+      - WHATSAPP_DOWNLOAD_MEDIA=true
+      - WHATSAPP_FILES_FOLDER=/app/.media
+      - WHATSAPP_FILES_LIFETIME=0
     volumes:
       - waha_data:/app/.wwebjs_auth
+      - waha_media:/app/.media
 
 volumes:
   postgres_data:
   redis_data:
   waha_data:
+  waha_media:

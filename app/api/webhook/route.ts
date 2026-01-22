@@ -9,6 +9,16 @@ export const dynamic = 'force-dynamic';
 const waha = new WAHAClient();
 const sessionManager = new SessionManager();
 const orchestrator = new AIOrchestrator(waha);
+
+// Lazy-loaded MediaParser to avoid server-side initialization issues
+let mediaParser: any = null;
+async function getMediaParser() {
+  if (!mediaParser) {
+    const { MediaParserService } = await import('@/lib/media-parser-service');
+    mediaParser = new MediaParserService();
+  }
+  return mediaParser;
+}
 export async function POST(req: Request) {
   console.log('[Webhook] POST request received');
   console.log('[Webhook] DB URL:', process.env.DATABASE_URL?.substring(0, 20) + '...');
@@ -16,6 +26,7 @@ export async function POST(req: Request) {
   
   try {
     const body = await req.json();
+    const wahaSession = body.session || 'default';
     // Debugging: Log full payload to understand NOWEB structure
     console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
 
@@ -38,7 +49,162 @@ export async function POST(req: Request) {
     }
 
     const chatId = payload.from;
-    const message = payload.body || ''; 
+    let message = payload.body || ''; 
+    const messageId = payload.id;
+
+    // --- MEDIA HANDLING (NEW) ---
+    // WAHA NOWEB may have different media detection
+    const messageType = payload.type || (payload._data && payload._data.type);
+    const mediaTypes = ['image', 'document', 'audio', 'video', 'sticker'];
+    const isMediaType = mediaTypes.includes(messageType);
+    const hasMedia = payload.hasMedia || 
+                     (payload._data && payload._data.hasMedia) || 
+                     isMediaType ||
+                     (payload._data && payload._data.message && (
+                       payload._data.message.documentMessage ||
+                       payload._data.message.imageMessage ||
+                       payload._data.message.audioMessage ||
+                       payload._data.message.videoMessage
+                     ));
+    
+    console.log(`[Webhook] DEBUG: type=${messageType}, hasMedia=${hasMedia}, isMediaType=${isMediaType}`);
+    
+    if (hasMedia && messageId) {
+        try {
+            console.log(`[Webhook] Media detected in message ${messageId}. Extracting...`);
+            
+            // Try to get media URL from payload first (WAHA provides this in payload.media.url)
+            // The webhook structure is: { event, session, payload: { hasMedia, media: { url, mimetype } } }
+            const mediaUrl = payload.media?.url || 
+                             payload.payload?.media?.url ||
+                             payload._data?.media?.url;
+            
+            const mediaMimetype = payload.media?.mimetype ||
+                                  payload.payload?.media?.mimetype ||
+                                  payload._data?.media?.mimetype;
+            
+            console.log(`[Webhook] DEBUG: mediaUrl=${mediaUrl || 'NOT_FOUND'}, mimetype=${mediaMimetype || 'unknown'}`);
+            console.log(`[Webhook] DEBUG: payload.media=${JSON.stringify(payload.media || 'undefined')}`);
+
+            
+            let buffer: Buffer;
+            let mimeType: string;
+            
+            if (mediaUrl) {
+                // Replace localhost:3000 with actual WAHA_API_URL (Docker network issue)
+                const wahaApiUrl = process.env.WAHA_API_URL || 'http://localhost:5000';
+                const fixedMediaUrl = mediaUrl.replace('http://localhost:3000', wahaApiUrl);
+                console.log(`[Webhook] DEBUG: fixedMediaUrl=${fixedMediaUrl}`);
+                
+                // Download directly from URL provided by WAHA
+                const axios = (await import('axios')).default;
+                const response = await axios.get(fixedMediaUrl, { 
+                    responseType: 'arraybuffer',
+                    headers: {
+                        'X-Api-Key': process.env.WAHA_API_KEY || ''
+                    }
+                });
+                buffer = Buffer.from(response.data);
+                mimeType = response.headers['content-type'] || mediaMimetype || 'application/octet-stream';
+            } else {
+                // Fallback to WAHA client method
+                const result = await waha.downloadMedia(messageId);
+                buffer = result.buffer;
+                mimeType = result.mimeType;
+            }
+            
+            const parser = await getMediaParser();
+            const extractedText = await parser.parseMedia(buffer, mimeType);
+            
+            const mediaFilename = payload.media?.filename || 
+                                  payload.payload?.media?.filename || 
+                                  payload._data?.media?.filename || 
+                                  'Dokumen';
+
+            if (extractedText && extractedText.trim().length > 0) {
+                console.log(`[Webhook] Extracted text: ${extractedText.substring(0, 50)}...`);
+                // Append extracted text to the message
+                const prefix = message ? `${message}\n\n` : '';
+                message = `${prefix}[TEKS DARI MEDIA (Filename: ${mediaFilename})]:\n${extractedText}`;
+            }
+        } catch (mediaError: any) {
+            console.error('[Webhook] Media Extraction Error:', mediaError.message);
+            // Non-blocking: continue with original message if extraction fails
+        }
+    }
+
+    // --- REPLY TO MEDIA HANDLING (NEW) ---
+    // Check for quoted message in various WAHA payload locations
+    const replyTo = payload.replyTo || (payload._data && payload._data.replyTo);
+    const quotedMsg = payload.quotedMsg || 
+                      (payload._data && payload._data.quotedMsg) ||
+                      replyTo;
+    
+    // For NOWEB, quoted message ID might be in quotedStanzaID or replyTo.id
+    const quotedMsgId = quotedMsg?.id || 
+                        (quotedMsg?._data?.id) || 
+                        (payload._data?.quotedStanzaID) ||
+                        replyTo?.id;
+    
+    if (quotedMsgId && !hasMedia) {
+        const quotedHasMedia = quotedMsg?.hasMedia || 
+                               (quotedMsg?._data?.hasMedia) ||
+                               (quotedMsg?.type === 'document' || quotedMsg?.type === 'image') ||
+                               (replyTo?._data?.documentMessage || replyTo?._data?.imageMessage);
+        
+        console.log(`[Webhook] DEBUG: quotedMsgId=${quotedMsgId}, quotedHasMedia=${quotedHasMedia}`);
+        
+        if (quotedHasMedia) {
+            try {
+                console.log(`[Webhook] User is replying to a message with media (ID: ${quotedMsgId}). Extracting...`);
+                
+                // Extract mimetype from the reply message structure
+                const quotedMime = quotedMsg?.mimetype || 
+                                   quotedMsg?._data?.mimetype || 
+                                   (replyTo?._data?.documentMessage?.mimetype) ||
+                                   (replyTo?._data?.imageMessage?.mimetype) ||
+                                   'application/octet-stream';
+                
+                console.log(`[Webhook] DEBUG: quotedMime=${quotedMime}`);
+
+                let buffer: Buffer;
+                let mimeType: string;
+
+                // Try the new URL format first (replyTo.id + mimetype)
+                try {
+                    console.log(`[Webhook] Trying new URL format: /api/files/${process.env.WAHA_SESSION || 'default'}/${quotedMsgId}.{ext}`);
+                    const result = await waha.downloadMediaByReplyId(quotedMsgId, quotedMime);
+                    buffer = result.buffer;
+                    mimeType = result.mimeType;
+                    console.log(`[Webhook] Successfully downloaded using new URL format`);
+                } catch (newFormatError: any) {
+                    console.log(`[Webhook] New URL format failed: ${newFormatError.message}. Trying fallback...`);
+                    
+                    // Fallback to old method
+                    const result = await waha.downloadMedia(quotedMsgId);
+                    buffer = result.buffer;
+                    mimeType = result.mimeType;
+                }
+
+                const parser = await getMediaParser();
+                const extractedText = await parser.parseMedia(buffer, mimeType);
+                
+                // Get filename if possible
+                const quotedFilename = quotedMsg?.filename || 
+                                       quotedMsg?.media?.filename ||
+                                       (replyTo?._data?.documentMessage?.fileName) ||
+                                       'Dokumen';
+
+                if (extractedText && extractedText.trim().length > 0) {
+                    console.log(`[Webhook] Extracted text from quoted message: ${extractedText.substring(0, 50)}...`);
+                    const prefix = message ? `${message}\n\n` : '';
+                    message = `${prefix}[TEKS DARI FILE YANG DIBALAS (Filename: ${quotedFilename})]:\n${extractedText}`;
+                }
+            } catch (quotedMediaError: any) {
+                console.error('[Webhook] Quoted Media Extraction Error:', quotedMediaError.message);
+            }
+        }
+    }
     
     console.log(`[Webhook] INCOMING -> from: ${chatId}, body: "${message}"`); // Log immediately for debug
     
@@ -128,13 +294,16 @@ export async function POST(req: Request) {
 
     // --- AI ORCHESTRATION ---
     // Extract messageId from payload (WAHA NOWEB uses 'id' for the message ID)
-    const messageId = payload.id;
+    // const messageId = payload.id; // Already extracted above
 
     console.log(`[Webhook] Dispatching to AI Orchestrator... (MsgID: ${messageId || 'none'})`);
+    const senderName = payload.pushname || (payload._data && payload._data.pushname) || '';
+
     const reply = await orchestrator.handleMessage(message, {
         phoneNumber: chatId,
         sessionState: session.sessionState,
-        messageId: messageId
+        messageId: messageId,
+        senderName: senderName
     });
 
     console.log(`[Webhook] AI Replied: ${reply.substring(0, 50)}...`);

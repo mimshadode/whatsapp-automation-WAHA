@@ -133,4 +133,91 @@ export class WAHAClient {
       throw error;
     }
   }
+
+  /**
+   * Get messages from a chat
+   * WAHA endpoint: GET /api/{session}/chats/{chatId}/messages
+   */
+  async getMessages(chatId: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.get(
+        `/api/${this.sessionName}/chats/${encodeURIComponent(chatId)}/messages`,
+        {
+          params: {
+            sortBy: 'messageTimestamp',
+            downloadMedia: false,
+            limit,
+            'filter.fromMe': false
+          }
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('[WAHA Client] Error getting messages:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Download media from a message
+   * WAHA endpoint: /api/files/{messageId}
+   */
+  async downloadMedia(messageId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    try {
+      // WAHA Documentation: GET /api/files/{messageId}
+      const response = await this.client.get(`/api/files/${messageId}`, {
+        responseType: 'arraybuffer'
+      });
+
+      const buffer = Buffer.from(response.data);
+      const mimeType = response.headers['content-type'] || 'application/octet-stream';
+
+      return { buffer, mimeType };
+    } catch (error: any) {
+      console.error('[WAHA Client] Error downloading media:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Download media from a reply message using the new URL format
+   * WAHA endpoint: /api/files/{session}/{replyId}.{extension}
+   * @param replyId The message ID from replyTo.id
+   * @param mimetype The mimetype (e.g., 'application/pdf', 'image/jpeg')
+   */
+  async downloadMediaByReplyId(replyId: string, mimetype: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    try {
+      // Map mimetype to file extension
+      const mimetypeToExt: { [key: string]: string } = {
+        'application/pdf': 'pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'application/msword': 'doc',
+        'image/jpeg': 'jpeg',
+        'image/jpg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'video/mp4': 'mp4',
+        'audio/mpeg': 'mp3',
+        'audio/ogg': 'ogg'
+      };
+
+      const extension = mimetypeToExt[mimetype] || mimetype.split('/')[1] || 'bin';
+      const url = `/api/files/${this.sessionName}/${replyId}.${extension}`;
+      
+      console.log(`[WAHA Client] Downloading media from: ${url}`);
+      
+      const response = await this.client.get(url, {
+        responseType: 'arraybuffer'
+      });
+
+      const buffer = Buffer.from(response.data);
+      const mimeType = response.headers['content-type'] || mimetype;
+
+      return { buffer, mimeType };
+    } catch (error: any) {
+      console.error('[WAHA Client] Error downloading media by reply ID:', error.message);
+      throw error;
+    }
+  }
 }

@@ -8,6 +8,7 @@ export interface AITool {
 export interface ToolContext {
   phoneNumber: string;
   sessionState: any;
+  senderName?: string;
 }
 
 export interface ToolResponse {

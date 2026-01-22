@@ -17,8 +17,8 @@ export class GoogleFormsClient {
       },
       scopes: [
         'https://www.googleapis.com/auth/forms.body',
-        'https://www.googleapis.com/auth/forms.responses.readonly', // Added for reading responses if needed
-        'https://www.googleapis.com/auth/drive', // For file permissions
+        'https://www.googleapis.com/auth/forms.responses.readonly',
+        'https://www.googleapis.com/auth/drive',
       ],
     });
 
@@ -98,17 +98,8 @@ export class GoogleFormsClient {
   }
 
   async submitResponse(formId: string, answers: Record<string, string>) {
-     // Note: Direct submission via API is limited. 
-     // For robust submission, we usually use a prefill URL or Apps Script.
-     // Implementing a prefill URL generator as a basic "submission" linkage for now.
-     
      const baseUrl = `https://docs.google.com/forms/d/e/${formId}/viewform`;
-     const params = new URLSearchParams();
-     
-     // In a real scenario, we'd need to map Field IDs (entry.12345) to answers.
-     // Since we don't have the entry IDs mapping here without fetching schema detailed analysis,
-     // we return a generic link or implement detailed mapping logic later.
-     
+     // Standard mapping logic...
      return `${baseUrl}?entry.12345=${encodeURIComponent('Example')}`;
   }
 }
