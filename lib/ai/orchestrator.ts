@@ -69,15 +69,24 @@ OUTPUT: Only output the INTENT NAME (e.g. CREATE_FORM).`;
   private async sendAcknowledgment(message: string, context: ToolContext): Promise<void> {
     try {
       const name = (context.senderName && context.senderName !== '.') ? context.senderName : '';
+      console.log(`[AIOrchestrator] Sending acknowledgment for: ${name || 'Unknown (Generic)'}`);
       
-      const prompt = `Based on the user message, extract the intended Google Form title and generate a short, friendly, and informal acknowledgment in Indonesian.
-      
-RULES:
-1. If the user provided a name ("${name}"), use it.
-2. If the name is empty or just ".", use a friendly, non-formal, and non-stiff greeting/panggilan (like "Kak", "Sobat", "Halo", etc).
-3. Extract the form title. If not clear, use a generic term like "form-nya".
-4. The output must be ONLY the response string.
-5. Format: "Baik [Nama/Sapaan], saya akan bantu buatkan form [Judul Form] ya. Mohon tunggu sebentar..." or similar dynamic variation with friendly tone.
+      const prompt = `Anda adalah asisten WhatsApp yang sedang memproses permintaan pembuatan Google Form.
+Tugas Anda adalah membalas pesan user dengan konfirmasi bahwa Anda SEDANG MULAI mengerjakan form tersebut.
+
+VARIABEL:
+- Nama User: "${name}"
+- Pesan User: "${message}"
+
+ATURAN BALASAN:
+1. Jika Nama User tersedia (bukan kosong), Anda WAJIB menyapa dengan nama tersebut di AWAL pesan.
+   - Gunakan nama depan atau panggilan yang akrab.
+   - Contoh: "Siap Kak [Nama]...", "Baik Kak [Nama]...", "Oke Kak [Nama]...".
+2. Jika Nama User kosong, gunakan sapaan ramah (seperti "Kak", "Sobat", dll).
+3. Identifikasi judul form dari pesan user. Jika tidak jelas gunakan "form-nya".
+4. Gunakan kalimat "sedang diproses" atau "mohon tunggu sebentar".
+5. DILARANG menggunakan kata "sudah siap" atau "berhasil dibuat" di pesan ini.
+6. HANYA keluarkan teks balasannya saja (STRICTLY TEXT ONLY).
 
 USER MESSAGE: "${message}"`;
 

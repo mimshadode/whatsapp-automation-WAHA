@@ -247,14 +247,14 @@ export async function POST(req: Request) {
              
              // Check @BotNumber
              const botLid = process.env.BOT_LID;
-             if (message.includes('@' + botNumber) || (botLid && message.includes('@' + botLid))) {
+             if (message.includes(botNumber) || (botLid && message.includes('@' + botLid))) {
                  console.log(`[Webhook] Fallback: Mention found via Phone Number or LID.`);
                  isMentioned = true;
              } 
              // Check Aliases
              else {
                  for (const alias of aliases) {
-                     if (lowerMsg.includes('@' + alias)) {
+                     if (lowerMsg.includes(alias)) {
                          console.log(`[Webhook] Fallback: Mention found via Alias '@${alias}'.`);
                          isMentioned = true;
                          break;
@@ -297,7 +297,29 @@ export async function POST(req: Request) {
     // const messageId = payload.id; // Already extracted above
 
     console.log(`[Webhook] Dispatching to AI Orchestrator... (MsgID: ${messageId || 'none'})`);
-    const senderName = payload.pushname || (payload._data && payload._data.pushname) || '';
+    let senderName = payload.pushname || payload.pushName || (payload._data && (payload._data.pushname || payload._data.pushName)) || '';
+
+    // If pushname is missing (common in some WAHA engines/group setups), try to resolve it from contacts
+    if (!senderName) {
+        try {
+            console.log('[Webhook] Pushname missing, attempting to resolve from contacts...');
+            const contacts = await waha.getContacts();
+            // Participant is the sender in a group, otherwise use 'from'
+            const senderId = payload.participant || payload._data?.participant || payload.from;
+            
+            if (senderId) {
+                const contact = contacts.find(c => c.id === senderId);
+                if (contact) {
+                    senderName = contact.pushname || contact.pushName || '';
+                    if (senderName) {
+                        console.log(`[Webhook] Resolved pushname: ${senderName} for ID: ${senderId}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Webhook] Error resolving pushname:', error);
+        }
+    }
 
     const reply = await orchestrator.handleMessage(message, {
         phoneNumber: chatId,

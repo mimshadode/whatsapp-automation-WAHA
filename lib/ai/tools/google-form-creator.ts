@@ -183,6 +183,8 @@ IMPORTANT:
       const questionCount = questions.length;
       const descriptionTxt = data.description ? `\n\n📝 *Deskripsi:* ${data.description}` : '';
 
+      const name = context.senderName && context.senderName !== '.' ? ` ${context.senderName.split(' ')[0]}` : '';
+
       return {
         success: true,
         reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan\n\n🔗 *Link Form:*\n${result.url}\n\n✏️ *Edit Form:*\n${result.editUrl}\n\nAda lagi yang bisa saya bantu?`,

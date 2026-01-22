@@ -220,4 +220,36 @@ export class WAHAClient {
       throw error;
     }
   }
+
+  /**
+   * Get all contacts
+   * WAHA endpoint: GET /api/contacts/all
+   */
+  async getContacts(): Promise<any[]> {
+    try {
+      const response = await this.client.get('/api/contacts/all', {
+        params: { session: this.sessionName }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('[WAHA Client] Error getting contacts:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get group participants
+   * WAHA endpoint: GET /api/{session}/groups/{groupId}/participants
+   */
+  async getGroupParticipants(groupId: string): Promise<any[]> {
+    try {
+      const response = await this.client.get(
+        `/api/${this.sessionName}/groups/${encodeURIComponent(groupId)}/participants`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('[WAHA Client] Error getting group participants:', error.message);
+      return [];
+    }
+  }
 }
