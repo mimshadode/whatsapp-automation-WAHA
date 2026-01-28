@@ -29,8 +29,14 @@ export class SessionManager {
   }
 
   async createSession(phoneNumber: string): Promise<WhatsappSession> {
-      const session = await db.whatsappSession.create({
-          data: { phoneNumber, sessionState: {} }
+      // Use upsert to handle race conditions where multiple webhooks might try to create a session simultaneously
+      const session = await db.whatsappSession.upsert({
+          where: { phoneNumber },
+          update: {}, // No updates needed if it exists
+          create: { 
+              phoneNumber, 
+              sessionState: {} 
+          }
       });
       await this.cacheSession(phoneNumber, session);
       return session;

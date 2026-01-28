@@ -8,6 +8,15 @@ if (process.env.REDIS_URL) {
         connectTimeout: 5000,
         showFriendlyErrorStack: true
     });
+
+    redis.on('error', (err: any) => {
+        // Suppress ECONNRESET errors which are common during dev/hot-reloads or container restarts
+        if (err.code === 'ECONNRESET') {
+             // console.warn('[Redis] Connection reset, reconnecting...');
+        } else {
+             console.error('[Redis] Client Error:', err.message);
+        }
+    });
 } else {
     // Mock Redis for environments without REDIS_URL (e.g. Vercel free tier)
     // This forces the app to rely solely on the Database (Postgres)

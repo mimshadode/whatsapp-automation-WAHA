@@ -48,7 +48,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ status: 'ignored' });
     }
 
-    const chatId = payload.from;
+    let chatId = payload.from;
+
+    // Fix: Prefer s.whatsapp.net (canonical user ID) over @lid (linked device ID)
+    // Sending to @lid sometimes causes delivery issues or only delivers to that specific device
+    if (chatId.endsWith('@lid') && payload._data?.key?.remoteJidAlt) {
+        console.log(`[Webhook] Switching chatId from LID (${chatId}) to Canonical (${payload._data.key.remoteJidAlt})`);
+        chatId = payload._data.key.remoteJidAlt;
+    }
     
     // --- WHITELIST FILTER FOR PRIVATE CHATS ---
     // Only apply whitelist to private chats (not groups)
