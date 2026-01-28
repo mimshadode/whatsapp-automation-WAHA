@@ -18,6 +18,7 @@ INTENTS:
 - ACKNOWLEDGMENT: Simple acknowledgment or thanks (oke, ok, baik, terima kasih, thanks, siap, noted).
 - CREATE_FORM: Requesting to create a form or survey. Includes complex instructions like "bagi section", "tambahkan deskripsi", "buatkan dari file". **IMPORTANT: If the message contains "[TEKS DARI MEDIA]" or "[TEKS DARI FILE YANG DIBALAS]", this is ALWAYS CREATE_FORM intent.**
 - CHECK_RESPONSES: Asking about form responses, statistics, "berapa yang sudah isi", "siapa yang mengisi", "daftar responden".
+- SHARE_FORM: Requesting to add a contributor/editor or share the form (keywords: "bagikan", "kirim akses", "tambahkan email", "jadikan editor").
 - CHECK_SCHEDULE: Asking about schedule, calendar, or agenda.
 - UNKNOWN: Anything else.
 
@@ -90,7 +91,9 @@ Respons (singkat dan jelas):`,
       STEP 1: IDENTIFY FORM METADATA
       From the user input, determine:
       - Form title
-      - Form description (ONLY if explicitly mentioned using keywords such as: deskripsi, keterangan, penjelasan, sertakan)
+      - Form description (ONLY if explicitly mentioned)
+      - Custom URL name/keyword (ONLY if user says: "url-nya [nama]", "bit.ly/[nama]", "pake nama [nama]")
+      - Editors/Contributors (ONLY if user says: "tambahkan [email]", "masukan [email] jadi editor", "share ke [email]")
       - Email collection setting:
         - VERIFIED → if user asks to collect verified emails
         - RESPONDER_INPUT → if user asks users to fill their email
@@ -127,20 +130,20 @@ Respons (singkat dan jelas):`,
           2. Phrases like “Judul Penelitian”, “Nama Kegiatan”
           3. Sentences like “Penelitian dengan judul …”
           4. Filename (without extension) if none found
-      - Description:
-        - Use introductory paragraphs, greetings, or purpose explanations
-      - Sections:
-        - Look for bold headers or distinct parts like:
-          - "BAGIAN 1", "SECTION A", "BAB I"
-          - "A. Identitas Responden", "B. Kesiapan Kerja"
-          - "1. Data Diri", "2. Kuesioner" (if they clearly separate groups of questions)
-        - MAP THESE TO type="section"
-        - The text following the header should be the section description
-      - Questions:
-        - Numbered items under sections → questions
-        - "Nama:", "Email:", "NIM:" → text fields
-        - Tables with SS/S/KS/TS → radio questions with Likert options
-        - Registration templates → input fields
+        - Description:
+          - Use introductory paragraphs, greetings, or purpose explanations
+        - Sections:
+          - Look for bold headers or distinct parts like:
+            - "BAGIAN 1", "SECTION A", "BAB I"
+            - "A. Identitas Responden", "B. Kesiapan Kerja"
+            - "1. Data Diri", "2. Kuesioner" (if they clearly separate groups of questions)
+          - MAP THESE TO type="section"
+          - The text following the header should be the section description
+        - Questions:
+          - Numbered items under sections → questions
+          - "Nama:", "Email:", "NIM:" → text fields
+          - Tables with SS/S/KS/TS → radio questions with Likert options
+          - Registration templates → input fields
 
       If unclear, MAKE A REASONABLE BEST GUESS.
       Never skip output.
@@ -171,6 +174,8 @@ Respons (singkat dan jelas):`,
       {
         "title": "Form Title",
         "description": "Optional description",
+        "customKeyword": "Optional custom URL keyword",
+        "editors": ["email1@gmail.com", "email2@gmail.com"],
         "emailCollectionType": "VERIFIED|RESPONDER_INPUT|DO_NOT_COLLECT",
         "questions": [
           {
@@ -267,4 +272,26 @@ CRITICAL RULES:
 - Handle empty respondent lists gracefully.
 
 Output (text only):`,
+
+  /**
+   * Used to extract email and form name for sharing.
+   */
+  formContributor: (query: string) => `Analyze the user's request to share/add a contributor to a Google Form.
+    Extract the email address and the form name mentioned.
+
+    RULES:
+    1. Extract ONLY the email address.
+    2. Extract the form name if mentioned.
+    3. If no form name is mentioned, return "NONE".
+    4. The output MUST be a valid JSON object.
+
+    JSON FORMAT:
+    {
+      "email": "email@address.com",
+      "formName": "Form Name or NONE"
+    }
+
+    USER MESSAGE: "${query}"
+
+    Output (JSON only):`,
 };

@@ -1,6 +1,7 @@
 import { AITool, ToolContext, ToolResponse } from '../types';
 import { BiznetGioClient } from '@/lib/biznetgio-client';
 import { GoogleFormsOAuthClient, FormQuestion } from '@/lib/google-forms-oauth-client';
+import { BitlyClient } from '@/lib/bitly-client';
 import { Prompts } from '../prompts';
 
 export class GoogleFormCreatorTool implements AITool {
@@ -9,10 +10,12 @@ export class GoogleFormCreatorTool implements AITool {
   
   private biznet: BiznetGioClient;
   private googleForms: GoogleFormsOAuthClient;
+  private bitly: BitlyClient;
 
   constructor() {
     this.biznet = new BiznetGioClient();
     this.googleForms = new GoogleFormsOAuthClient();
+    this.bitly = new BitlyClient();
   }
 
   getSystemPrompt(): string {
@@ -93,19 +96,65 @@ export class GoogleFormCreatorTool implements AITool {
       console.log('[GoogleFormTool] Description:', data.description || '(none)');
       console.log('[GoogleFormTool] Questions:', JSON.stringify(questions, null, 2));
 
-      // 5. Create the form using OAuth Client
+      // 5. Prepare Editors (Manual + Admin Default)
+      const adminEmail = process.env.GOOGLE_FORM_ADMIN_EMAIL;
+      const requestedEditors = data.editors || [];
+      const allEditors = [...new Set([...requestedEditors].filter(e => !!e))];
+      if (adminEmail && !allEditors.includes(adminEmail)) {
+        console.log(`[GoogleFormTool] Adding admin email ${adminEmail} to editors list.`);
+        allEditors.push(adminEmail);
+      }
+
+      // 6. Create the form using OAuth Client
       const result = await this.googleForms.createForm(
         data.title,
         questions,
         { 
           description: data.description,
-          emailCollectionType: data.emailCollectionType
+          emailCollectionType: data.emailCollectionType,
+          editors: allEditors
         }
       );
 
       console.log('[GoogleFormTool] Form created successfully:', result.formId);
 
-      // 6. Format response
+      // 7. Shorten links using Bitly (Only for public URL)
+      let customKeyword = data.customKeyword;
+      
+      // Auto-generate custom keyword from title if not provided
+      if (!customKeyword && data.title) {
+        customKeyword = data.title
+          .toLowerCase()
+          .replace(/[^\w\s-]/g, '') // Remove non-alphanumeric except spaces and hyphens
+          .trim()
+          .replace(/\s+/g, '-')     // Replace spaces with hyphens
+          .replace(/-+/g, '-');     // Replace multiple hyphens with single hyphen
+          
+        console.log(`[GoogleFormTool] Generated automatic custom keyword: ${customKeyword}`);
+      }
+
+      const shortUrl = await this.bitly.shorten(result.url || '', customKeyword);
+      // Public links are shortened, direct links for edit and spreadsheet are kept original as requested
+      const editUrl = result.editUrl;
+      const spreadsheetUrl = result.spreadsheetUrl;
+
+      // 8. Share with editors if requested
+      const sharedWith: string[] = [];
+      if (allEditors.length > 0) {
+        console.log(`[GoogleFormTool] Sharing form with ${allEditors.length} editors...`);
+        for (const email of allEditors) {
+          try {
+            await this.googleForms.addContributor(result.formId, email);
+            console.log(`[GoogleFormTool] Shared successfully with ${email}`);
+            sharedWith.push(email);
+          } catch (shareError: any) {
+            console.error(`[GoogleFormTool] Failed to share with ${email}:`, shareError.message);
+          }
+        }
+      }
+
+      // 8. Format response
+      const sharedTxt = sharedWith.length > 0 ? `\n\n👥 *Editor:* ${sharedWith.join(', ')}` : '';
       // 6. Format response (Show only total count as requested)
       const questionCount = questions.length;
       const descriptionTxt = data.description ? `\n\n📝 *Deskripsi:* ${data.description}` : '';
@@ -132,19 +181,16 @@ export class GoogleFormCreatorTool implements AITool {
           // For now, we return it in `newState` and assume Orchestrator handles the merge.
       }
 
-      const spreadsheetTxt = result.spreadsheetUrl ? `\n\n📊 *Link Spreadsheet:*\n${result.spreadsheetUrl}` : '';
+      const spreadsheetTxt = spreadsheetUrl ? `\n\n📊 *Link Spreadsheet:*\n${spreadsheetUrl}` : '';
 
       return {
         success: true,
-        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan\n\n🔗 *Link Form:*\n${result.url}\n\n✏️ *Edit Form:*\n${result.editUrl}${spreadsheetTxt}\n\nAda lagi yang bisa saya bantu?`,
+        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan${sharedTxt}\n\n🔗 *Link Form:*\n${shortUrl}\n\n✏️ *Edit Form:*\n${editUrl}${spreadsheetTxt}\n\nAda lagi yang bisa saya bantu?`,
         newState: { 
           lastFormId: result.formId,
-          lastFormUrl: result.url,
-          lastFormEditUrl: result.editUrl,
-          lastSpreadsheetUrl: result.spreadsheetUrl,
-          // Append new form to the list (AI Orchestrator must handle merging arrays if it supports it, 
-          // or we handle it here if we had direct DB access. 
-          // Assuming simple replacement/append logic in Orchestrator or just passing the delta)
+          lastFormUrl: shortUrl,
+          lastFormEditUrl: editUrl,
+          lastSpreadsheetUrl: spreadsheetUrl,
           createdForms: [...createdForms, newFormEntry] 
         }
       };

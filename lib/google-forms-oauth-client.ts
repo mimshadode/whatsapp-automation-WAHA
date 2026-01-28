@@ -23,11 +23,13 @@ export interface FormSettings {
   limitOneResponse?: boolean;
   isQuiz?: boolean;
   confirmationMessage?: string;
+  editors?: string[];
 }
 
 export class GoogleFormsOAuthClient {
   private oauth2Client: OAuth2Client;
   private forms;
+  private drive;
 
   constructor() {
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/auth/google/callback';
@@ -48,6 +50,7 @@ export class GoogleFormsOAuthClient {
     }
 
     this.forms = google.forms({ version: 'v1', auth: this.oauth2Client });
+    this.drive = google.drive({ version: 'v3', auth: this.oauth2Client });
   }
 
   /**
@@ -188,7 +191,7 @@ export class GoogleFormsOAuthClient {
       // 4. Link Google Spreadsheet via Apps Script
       let spreadsheetUrl: string | undefined;
       try {
-        const linkResult = await this.linkSpreadsheet(formId, title);
+        const linkResult = await this.linkSpreadsheet(formId, title, settings?.editors);
         spreadsheetUrl = linkResult?.spreadsheetUrl;
         if (linkResult) {
           console.log('[GoogleFormsOAuth] Spreadsheet linking attempt successful.');
@@ -214,9 +217,38 @@ export class GoogleFormsOAuthClient {
   }
 
   /**
+   * Add a contributor (editor) to the form via Google Drive API
+   */
+  async addContributor(formId: string, email: string) {
+    try {
+      console.log(`[GoogleFormsOAuth] Adding contributor ${email} to form ${formId}`);
+      const response = await this.drive.permissions.create({
+        fileId: formId,
+        requestBody: {
+          role: 'writer',
+          type: 'user',
+          emailAddress: email
+        },
+        fields: 'id',
+      });
+      return { success: true, permissionId: response.data.id };
+    } catch (error: any) {
+      console.error('[GoogleFormsOAuth] Error adding contributor:', error.message);
+      // Check for specific common errors
+      if (error.message?.includes('not found') || error.code === 404) {
+        throw new Error('Form tidak ditemukan atau akses terbatas.');
+      }
+      if (error.message?.includes('invalid') || error.code === 400) {
+        throw new Error('Alamat email tidak valid atau tidak bisa ditambahkan.');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Link a Google Spreadsheet to the form using an Apps Script Web App
    */
-  private async linkSpreadsheet(formId: string, title: string) {
+  private async linkSpreadsheet(formId: string, title: string, editors?: string[]) {
     const webAppUrl = process.env.GOOGLE_SCRIPT_WEB_APP_URL;
     if (!webAppUrl) {
       console.log('[GoogleFormsOAuth] GOOGLE_SCRIPT_WEB_APP_URL not set, skipping spreadsheet linking.');
@@ -233,7 +265,8 @@ export class GoogleFormsOAuthClient {
         body: JSON.stringify({ 
           formId, 
           title,
-          validateEmails: true 
+          validateEmails: true,
+          editors: editors || []
         }),
       });
 

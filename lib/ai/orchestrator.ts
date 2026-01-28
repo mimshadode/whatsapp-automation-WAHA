@@ -2,6 +2,7 @@ import { BiznetGioClient } from '@/lib/biznetgio-client';
 import { WAHAClient } from '@/lib/waha-client';
 import { AITool, BotIntent, ToolContext, ToolResponse } from './types';
 import { GoogleFormCreatorTool } from './tools/google-form-creator';
+import { FormContributorTool } from './tools/form-contributor';
 import { ScheduleCheckerTool } from './tools/schedule-checker';
 import { FormAnalyticsTool } from './tools/form-analytics';
 import { Prompts } from './prompts';
@@ -16,6 +17,7 @@ export class AIOrchestrator {
     this.waha = waha;
     this.tools = new Map();
     this.tools.set(BotIntent.CREATE_FORM, new GoogleFormCreatorTool());
+    this.tools.set(BotIntent.SHARE_FORM, new FormContributorTool());
     this.tools.set(BotIntent.CHECK_SCHEDULE, new ScheduleCheckerTool());
     this.tools.set(BotIntent.CHECK_RESPONSES, new FormAnalyticsTool());
   }
@@ -62,29 +64,19 @@ export class AIOrchestrator {
     const formKeywords = ['form', 'formulir', 'responden', 'mengisi', 'isi', 'daftar', 'berapa', 'siapa'];
     const hasFormKeywords = formKeywords.some(k => lowerMsg.includes(k));
     
-    // Quick check: Follow-up request patterns that rely on previous context
-    const followUpPatterns = ['sertakan', 'tambahkan', 'dengan email', 'emailnya', 'lihat email', 'tampilkan email'];
-    const isFollowUpRequest = followUpPatterns.some(p => lowerMsg.includes(p));
-    
     // Hard check: If message contains extracted document text, it's always CREATE_FORM
     const hasExtractedText = message.includes('[TEKS DARI MEDIA]') || message.includes('[TEKS DARI FILE YANG DIBALAS]');
     if (hasExtractedText) {
       console.log('[AIOrchestrator] Detected extracted document text → CREATE_FORM intent');
       return BotIntent.CREATE_FORM;
     }
-    
+
     // Quick check: Very short clarification questions (less than 30 chars and no form keywords)
     const clarificationPatterns = ['apa maksudnya', 'maksudnya apa', 'jelaskan', 'artinya apa', 'apa itu'];
     const isClarification = clarificationPatterns.some(p => lowerMsg.includes(p)) && !hasFormKeywords;
     
     if (isClarification) {
       return BotIntent.CLARIFICATION;
-    }
-    
-    // If it's a follow-up request (like "sertakan emailnya"), treat as CHECK_RESPONSES
-    // This will be handled with session context
-    if (isFollowUpRequest) {
-      return BotIntent.CHECK_RESPONSES;
     }
 
     const prompt = Prompts.detectIntent(message);
@@ -96,6 +88,7 @@ export class AIOrchestrator {
     if (intentStr.includes('ACKNOWLEDGMENT')) return BotIntent.ACKNOWLEDGMENT;
     if (intentStr.includes('CREATE_FORM')) return BotIntent.CREATE_FORM;
     if (intentStr.includes('CHECK_RESPONSES')) return BotIntent.CHECK_RESPONSES;
+    if (intentStr.includes('SHARE_FORM')) return BotIntent.SHARE_FORM;
     if (intentStr.includes('CHECK_SCHEDULE')) return BotIntent.CHECK_SCHEDULE;
 
     return BotIntent.UNKNOWN;
