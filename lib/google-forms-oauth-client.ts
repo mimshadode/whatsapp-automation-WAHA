@@ -30,11 +30,14 @@ export class GoogleFormsOAuthClient {
   private forms;
 
   constructor() {
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/auth/google/callback';
+    console.log('[GoogleFormsOAuth] Initializing with Redirect URI:', redirectUri);
+
     // Initialize OAuth2 Client
     this.oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/auth/google/callback'
+      redirectUri
     );
 
     // Set credentials if refresh token is available
@@ -57,10 +60,13 @@ export class GoogleFormsOAuthClient {
       'https://www.googleapis.com/auth/drive',
     ];
 
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/auth/google/callback';
+
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent', // Force to get refresh token
+      redirect_uri: redirectUri // Explicitly include it to avoid "Missing required parameter" errors
     });
   }
 
