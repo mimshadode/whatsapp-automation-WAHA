@@ -113,8 +113,16 @@ export class BitlyClient {
         const errorData = customError.response?.data;
         console.warn('[BitlyClient] Error applying custom alias:', errorData?.message || customError.message);
         
-        // If keyword already exists, try with a random suffix as fallback
-        if (errorData?.message === 'ALREADY_EXISTS' || errorData?.description?.includes('already in use')) {
+        // If keyword is unavailable / already exists, try with a random suffix as fallback
+        const message = (errorData?.message || '').toUpperCase();
+        const description = (errorData?.description || '').toUpperCase();
+
+        if (
+          message === 'ALREADY_EXISTS' ||
+          message === 'KEYWORD_UNAVAILABLE' ||
+          description.includes('ALREADY IN USE') ||
+          description.includes('UNAVAILABLE')
+        ) {
           const suffix = Math.floor(100 + Math.random() * 900); // 3-digit number
           const fallbackKeyword = `${cleanKeyword}-${suffix}`;
           console.log(`[BitlyClient] Retrying with fallback keyword: ${fallbackKeyword}`);

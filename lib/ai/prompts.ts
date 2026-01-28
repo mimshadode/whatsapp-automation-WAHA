@@ -16,7 +16,7 @@ export const Prompts = {
 INTENTS:
 - IDENTITY: Asking who you are, what you can do, greeting (halo, hi, hello), or calling you by name (John, Joni, Jon Jon).
 - ACKNOWLEDGMENT: Simple acknowledgment or thanks (oke, ok, baik, terima kasih, thanks, siap, noted).
-- CREATE_FORM: Requesting to create a form or survey. Includes complex instructions like "bagi section", "tambahkan deskripsi", "buatkan dari file". **IMPORTANT: If the message contains "[TEKS DARI MEDIA]" or "[TEKS DARI FILE YANG DIBALAS]", this is ALWAYS CREATE_FORM intent.**
+- CREATE_FORM: Requesting to create a form or survey. Includes complex instructions like "bagi section", "tambahkan deskripsi", "buatkan dari file", or phrases like "buatkan google formulir pendaftaran ...", "url-nya bit.ly/[nama]", "masukan [email] sebagai editor". **IMPORTANT: If the message contains "[TEKS DARI MEDIA]" or "[TEKS DARI FILE YANG DIBALAS]", this is ALWAYS CREATE_FORM intent.**
 - CHECK_RESPONSES: Asking about form responses, statistics, "berapa yang sudah isi", "siapa yang mengisi", "daftar responden".
 - SHARE_FORM: Requesting to add a contributor/editor or share the form (keywords: "bagikan", "kirim akses", "tambahkan email", "jadikan editor").
 - CHECK_SCHEDULE: Asking about schedule, calendar, or agenda.
@@ -91,9 +91,11 @@ Respons (singkat dan jelas):`,
       STEP 1: IDENTIFY FORM METADATA
       From the user input, determine:
       - Form title
-      - Form description (ONLY if explicitly mentioned)
-      - Custom URL name/keyword (ONLY if user says: "url-nya [nama]", "bit.ly/[nama]", "pake nama [nama]")
-      - Editors/Contributors (ONLY if user says: "tambahkan [email]", "masukan [email] jadi editor", "share ke [email]")
+      - Form description (ONLY if explicitly mentioned, for example: "dengan deskripsi yang menarik" → you MUST generate a short, attractive description in Indonesian)
+      - Custom URL name/keyword:
+        - If user says: "url-nya [nama]", "bit.ly/[nama]", "pake nama [nama]" → extract ONLY the keyword part without \`bit.ly/\`
+        - Example: "Url nya bit.ly/lomba-batch-3" → \`"customKeyword": "lomba-batch-3"\`
+      - Editors/Contributors (ONLY if user says: "tambahkan [email]", "masukan [email] jadi editor", "masukan [email] sebagai editor", "jadikan [email] editor", "share ke [email]")
       - Email collection setting:
         - VERIFIED → if user asks to collect verified emails
         - RESPONDER_INPUT → if user asks users to fill their email
@@ -108,6 +110,12 @@ Respons (singkat dan jelas):`,
       - Question type (see allowed types below)
       - Required status (infer logically: name/email/ID = required, suggestions = optional)
       - Options (ONLY if applicable)
+      
+      Example of field-style instructions:
+      - User: "nama, alamat, dan nomor HP" → you MUST create three required questions:
+        - "Nama"
+        - "Alamat"
+        - "Nomor HP"
       
       IMPORTANT: If you identified \`emailCollectionType\` as VERIFIED or RESPONDER_INPUT in Step 1, DO NOT include "Email" as a separate question in this list. This prevents duplicate fields.
 

@@ -71,6 +71,30 @@ export class AIOrchestrator {
       return BotIntent.CREATE_FORM;
     }
 
+    // Rule-based shortcut: Common "create Google Form" phrasing
+    // Helps reliably catch requests like:
+    // "Buatkan google formulir pendaftaran tarik ulur perasaan batch 3.
+    //  Url nya bit.ly/lomba-batch-3. Dengan deskripsi yang menarik,
+    //  nama, alamat, dan nomor HP Masukan mimshad@mail.com sebagai editor."
+    const createFormPatterns = [
+      'buatkan google form',
+      'buat google form',
+      'buatkan google formulir',
+      'buat google formulir',
+      'buatkan formulir',
+      'buat formulir',
+      'buatkan form',
+      'buat form',
+      'formulir pendaftaran',
+      'form pendaftaran',
+      'link pendaftaran',
+    ];
+
+    if (createFormPatterns.some(p => lowerMsg.includes(p))) {
+      console.log('[AIOrchestrator] Detected rule-based CREATE_FORM intent');
+      return BotIntent.CREATE_FORM;
+    }
+
     // Quick check: Very short clarification questions (less than 30 chars and no form keywords)
     const clarificationPatterns = ['apa maksudnya', 'maksudnya apa', 'jelaskan', 'artinya apa', 'apa itu'];
     const isClarification = clarificationPatterns.some(p => lowerMsg.includes(p)) && !hasFormKeywords;
