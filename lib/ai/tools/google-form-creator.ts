@@ -1,6 +1,7 @@
 import { AITool, ToolContext, ToolResponse } from '../types';
 import { BiznetGioClient } from '@/lib/biznetgio-client';
 import { GoogleFormsOAuthClient, FormQuestion } from '@/lib/google-forms-oauth-client';
+import { Prompts } from '../prompts';
 
 export class GoogleFormCreatorTool implements AITool {
   name = 'Google Form Creator';
@@ -15,95 +16,7 @@ export class GoogleFormCreatorTool implements AITool {
   }
 
   getSystemPrompt(): string {
-    return `You are a specialized Google Form creation assistant.
-    
-INSTRUCTIONS:
-1. Analyze the user's request to identify:
-   - FORM TITLE
-   - FORM DESCRIPTION (if mentioned with keywords: "deskripsi", "keterangan", "penjelasan", "sertakan")
-   - EMAIL COLLECTION SETTING (if mentioned, map to: "VERIFIED", "RESPONDER_INPUT", or "DO_NOT_COLLECT")
-   - LIST OF QUESTIONS/FIELDS
-   - QUESTION TYPE for each field
-   - OPTIONS (if applicable for choice/radio/checkbox/dropdown)
-   - Whether field is REQUIRED
-
-2. SPECIAL CASE - EXTRACTED DOCUMENT TEXT:
-   If the user message contains "[TEKS DARI MEDIA]:" or "[TEKS DARI FILE YANG DIBALAS]:", this means the text was extracted from a document (PDF, image, etc).
-   In this case:
-   - Analyze the extracted text carefully to identify form fields, questions, or survey items.
-   - Look for patterns like numbered lists, bullets, or labeled fields (e.g., "Nama:", "Email:", etc.).
-   - If the document is a questionnaire or survey ("Angket"), extract each question.
-   - For table-like questions (e.g. "SS S KS TS" or "Sangat Setuju" columns), identify the question text and use "radio" or "scale" type.
-   - If you see a list of statements with agreement columns, create a "radio" question for each statement with options ["Sangat Setuju", "Setuju", "Kurang Setuju", "Tidak Setuju", "Sangat Tidak Setuju"].
-   - If the document is a registration form template, identify all input fields.
-   - ALWAYS prioritize finding the title from the document text itself. Look for:
-     * Headers/Big text at the top
-     * Phrases like "Judul Penelitian:", "Tema:", "Nama Kegiatan:", "Lampiran -"
-     * If a research title is mentioned in the introductory text (e.g. "Penelitian dengan judul X"), use that.
-   - If NO clear title is found in the text, use the filename (without extension).
-   - EXTRACT FORM DESCRIPTION: Look for introductory paragraphs, "Kata Pengantar", or greetings (e.g., "Assalamu’alaikum", "Dengan hormat"). identifying the text explaining the purpose of the research/form. If found, use this FULL text as the form description.
-   - ALWAYS output valid JSON even if the document is unclear - make your best guess.
-
-3. Question types available:
-   - "text" = Short answer (nama, email, nomor telepon)
-   - "paragraph" = Long answer (alamat, deskripsi, saran, pertanyaan esai)
-   - "radio" = Multiple choice, single selection (pilih satu, skala likert)
-   - "checkbox" = Multiple choice, multiple selection (pilih beberapa)
-   - "dropdown" = Dropdown menu
-   - "scale" = Linear scale (rating 1-5, 1-10, etc)
-   - "date" = Date picker
-   - "time" = Time picker
-
-4. Output STRICTLY in this JSON format:
-{
-  "title": "Form Title Here",
-  "description": "Optional form description/explanation",
-  "emailCollectionType": "VERIFIED|RESPONDER_INPUT|DO_NOT_COLLECT",
-  "questions": [
-    {
-      "title": "Question text or Section Title",
-      "type": "text|paragraph|radio|checkbox|dropdown|scale|date|time|section",
-      "description": "Optional question or section description",
-      "required": true|false,
-      "options": ["option1", "option2"],
-      "low": 1,
-      "high": 5,
-      "lowLabel": "Label for low",
-      "highLabel": "Label for high"
-    }
-  ]
-}
-
-EXAMPLES:
-
-User: "Buatkan form pendaftaran event dengan nama, email, dan pilih sesi"
-Output:
-{
-  "title": "Form Pendaftaran Event",
-  "questions": [
-    {"title": "Nama Lengkap", "type": "text", "required": true},
-    {"title": "Email", "type": "text", "required": true},
-    {"title": "Pilih Sesi", "type": "radio", "required": true, "options": ["Pagi", "Siang", "Malam"]}
-  ]
-}
-
-User: "[TEKS DARI MEDIA]: Nama responden: ... NIM: ... Judul penelitian: ... 1. Bagaimana pendapat Anda tentang X? 2. Apakah Anda setuju dengan Y?"
-Output:
-{
-  "title": "Form Penelitian",
-  "questions": [
-    {"title": "Nama Responden", "type": "text", "required": true},
-    {"title": "NIM", "type": "text", "required": true},
-    {"title": "Bagaimana pendapat Anda tentang X?", "type": "paragraph", "required": true},
-    {"title": "Apakah Anda setuju dengan Y?", "type": "radio", "required": true, "options": ["Sangat Setuju", "Setuju", "Netral", "Tidak Setuju", "Sangat Tidak Setuju"]}
-  ]
-}
-
-IMPORTANT:
-- Only output valid JSON
-- If analyzing extracted document text, ALWAYS generate a form based on your best interpretation
-- Infer sensible defaults (e.g., nama/email = required, saran = not required)
-- For choice questions without explicit options, provide sensible defaults (like Likert scale for opinions)`;
+    return Prompts.googleFormCreator;
   }
 
   async execute(query: string, context: ToolContext): Promise<ToolResponse> {
@@ -139,7 +52,21 @@ IMPORTANT:
       }
 
       // 4. Map to Google Forms structure
-      const questions: FormQuestion[] = data.questions.map((q: any) => {
+      const questions: FormQuestion[] = data.questions
+        .filter((q: any) => {
+          // Hard-filter: Remove explicit "Email" question if email collection is enabled
+          // to prevent duplicates
+          if (data.emailCollectionType && 
+             (data.emailCollectionType === 'VERIFIED' || data.emailCollectionType === 'RESPONDER_INPUT')) {
+            const isEmail = q.title.trim().toLowerCase() === 'email';
+            if (isEmail) {
+              console.log('[GoogleFormTool] Removing duplicate "Email" question because email collection is enabled.');
+              return false;
+            }
+          }
+          return true;
+        })
+        .map((q: any) => {
         const question: FormQuestion = {
           title: q.title,
           type: this.mapQuestionType(q.type),
@@ -185,13 +112,40 @@ IMPORTANT:
 
       const name = context.senderName && context.senderName !== '.' ? ` ${context.senderName.split(' ')[0]}` : '';
 
+      // 7. Persist to Session State for "Memory"
+      // We store a list of created forms so the bot can answer "how many responses for form X?"
+      const currentSession = context.sessionState || {};
+      const createdForms = currentSession.createdForms || [];
+      
+      const newFormEntry = {
+        id: result.formId,
+        title: result.title,
+        url: result.url,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Update session state remotely
+      if (context.phoneNumber) {
+          // Note: We need a way to update session state from here. 
+          // Since ToolContext doesn't natively support update, we rely on the orchestrator or return newState.
+          // Ideally, the Orchestrator should merge `newState` into the DB.
+          // For now, we return it in `newState` and assume Orchestrator handles the merge.
+      }
+
+      const spreadsheetTxt = result.spreadsheetUrl ? `\n\n📊 *Link Spreadsheet:*\n${result.spreadsheetUrl}` : '';
+
       return {
         success: true,
-        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan\n\n🔗 *Link Form:*\n${result.url}\n\n✏️ *Edit Form:*\n${result.editUrl}\n\nAda lagi yang bisa saya bantu?`,
+        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan\n\n🔗 *Link Form:*\n${result.url}\n\n✏️ *Edit Form:*\n${result.editUrl}${spreadsheetTxt}\n\nAda lagi yang bisa saya bantu?`,
         newState: { 
           lastFormId: result.formId,
           lastFormUrl: result.url,
-          lastFormEditUrl: result.editUrl
+          lastFormEditUrl: result.editUrl,
+          lastSpreadsheetUrl: result.spreadsheetUrl,
+          // Append new form to the list (AI Orchestrator must handle merging arrays if it supports it, 
+          // or we handle it here if we had direct DB access. 
+          // Assuming simple replacement/append logic in Orchestrator or just passing the delta)
+          createdForms: [...createdForms, newFormEntry] 
         }
       };
 

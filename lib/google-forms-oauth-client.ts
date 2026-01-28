@@ -12,6 +12,8 @@ export interface FormQuestion {
   high?: number;
   lowLabel?: string;
   highLabel?: string;
+  // For text validation
+  validation?: 'email' | 'url' | 'number' | 'none';
 }
 
 export interface FormSettings {
@@ -168,15 +170,65 @@ export class GoogleFormsOAuthClient {
         });
       }
 
+      // 4. Link Google Spreadsheet via Apps Script
+      let spreadsheetUrl: string | undefined;
+      try {
+        const linkResult = await this.linkSpreadsheet(formId, title);
+        spreadsheetUrl = linkResult?.spreadsheetUrl;
+      } catch (linkError) {
+        console.warn('[GoogleFormsOAuth] Failed to link spreadsheet, but form was created:', linkError);
+        // We don't throw here to ensure the user still gets the form URLs
+      }
+
       return {
         formId,
         title: createResponse.data.info?.title,
         url: createResponse.data.responderUri,
         editUrl: `https://docs.google.com/forms/d/${formId}/edit`,
+        spreadsheetUrl: spreadsheetUrl
       };
 
     } catch (error: any) {
       console.error('[GoogleFormsOAuth] Error creating form:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link a Google Spreadsheet to the form using an Apps Script Web App
+   */
+  private async linkSpreadsheet(formId: string, title: string) {
+    const webAppUrl = process.env.GOOGLE_SCRIPT_WEB_APP_URL;
+    if (!webAppUrl) {
+      console.log('[GoogleFormsOAuth] GOOGLE_SCRIPT_WEB_APP_URL not set, skipping spreadsheet linking.');
+      return;
+    }
+
+    try {
+      console.log(`[GoogleFormsOAuth] Linking spreadsheet for form: ${formId}`);
+      const response = await fetch(webAppUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          formId, 
+          title,
+          validateEmails: true 
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        console.log(`[GoogleFormsOAuth] Spreadsheet linked successfully! URL: ${result.spreadsheetUrl}`);
+        return result;
+      } else {
+        console.error('[GoogleFormsOAuth] Apps Script Error Details:', JSON.stringify(result.debug, null, 2));
+        if (result.tip) console.warn('[GoogleFormsOAuth] Tip:', result.tip);
+        throw new Error(result.error || 'Unknown Apps Script error');
+      }
+    } catch (error: any) {
+      console.error('[GoogleFormsOAuth] Error calling Apps Script:', error.message);
       throw error;
     }
   }
@@ -228,8 +280,20 @@ export class GoogleFormsOAuthClient {
    */
   private buildQuestionConfig(question: FormQuestion) {
     switch (question.type) {
-      case 'text':
+      case 'text': {
+        // Detect email field for logging
+        const isEmailField = question.validation === 'email' || 
+                             question.title.toLowerCase().includes('email') ||
+                             question.title.toLowerCase().includes('e-mail');
+        
+        if (isEmailField) {
+          console.log(`[GoogleFormsOAuth] Email field detected: "${question.title}"`);
+        }
+        
         return { textQuestion: { paragraph: false } };
+      }
+
+
       
       case 'paragraph':
         return { textQuestion: { paragraph: true } };

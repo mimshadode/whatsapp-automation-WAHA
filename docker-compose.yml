@@ -49,7 +49,7 @@ services:
       - WHATSAPP_FILES_FOLDER=/app/.media
       - WHATSAPP_FILES_LIFETIME=0
     volumes:
-      - waha_data:/app/.wwebjs_auth
+      - waha_data:/app/.wwebjs_authFF
       - waha_media:/app/.media
 
 volumes:

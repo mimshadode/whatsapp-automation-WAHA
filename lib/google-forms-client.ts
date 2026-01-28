@@ -2,8 +2,10 @@ import { google } from 'googleapis';
 
 export interface FormQuestion {
   title: string;
-  type: 'text' | 'choice' | 'radio';
+  type: 'text' | 'paragraph' | 'choice' | 'radio' | 'checkbox' | 'dropdown' | 'scale' | 'date' | 'time' | 'section';
   options?: string[];
+  required?: boolean;
+  description?: string;
 }
 
 export class GoogleFormsClient {
@@ -27,7 +29,7 @@ export class GoogleFormsClient {
 
   // --- Legacy Capabilities (Creation) ---
 
-  async createForm(title: string, questions: FormQuestion[]) {
+  async createForm(title: string, questions: FormQuestion[], description?: string) {
     try {
       // 1. Create Form
       const createResponse = await this.forms.forms.create({
@@ -38,34 +40,69 @@ export class GoogleFormsClient {
       if (!formId) throw new Error('Failed to create form ID');
 
       // 2. Add Questions
+      const requests: any[] = [];
+      
       if (questions.length > 0) {
-        const requests = questions.map((q, index) => {
-          let questionConfig = {};
-          
-          if (q.type === 'choice' || q.type === 'radio') {
-            questionConfig = {
-              choiceQuestion: {
-                type: 'RADIO',
-                options: (q.options || []).map((opt) => ({ value: opt }))
-              }
-            };
+        questions.forEach((q, index) => {
+          const item: any = {
+            title: q.title,
+            description: q.description,
+          };
+
+          if (q.type === 'section') {
+            item.pageBreakItem = {};
           } else {
-            questionConfig = {
-              textQuestion: { paragraph: false }
+            let questionConfig = {};
+            
+            if (q.type === 'choice' || q.type === 'radio' || q.type === 'checkbox' || q.type === 'dropdown') {
+              let type = 'RADIO';
+              if (q.type === 'checkbox') type = 'CHECKBOX';
+              if (q.type === 'dropdown') type = 'DROP_DOWN';
+
+              questionConfig = {
+                choiceQuestion: {
+                  type,
+                  options: (q.options || []).map((opt) => ({ value: opt }))
+                }
+              };
+            } else if (q.type === 'paragraph') {
+              questionConfig = {
+                textQuestion: { paragraph: true }
+              };
+            } else {
+              questionConfig = {
+                textQuestion: { paragraph: false }
+              };
+            }
+
+            item.questionItem = { 
+              question: {
+                required: q.required || false,
+                ...questionConfig 
+              } 
             };
           }
 
-          return {
+          requests.push({
             createItem: {
-              item: {
-                title: q.title,
-                questionItem: { question: questionConfig }
-              },
+              item: item,
               location: { index }
             }
-          };
+          });
         });
+      }
 
+      // Add description if provided
+      if (description) {
+        requests.push({
+          updateFormInfo: {
+            info: { description },
+            updateMask: 'description'
+          }
+        });
+      }
+
+      if (requests.length > 0) {
         await this.forms.forms.batchUpdate({
           formId,
           requestBody: { requests }

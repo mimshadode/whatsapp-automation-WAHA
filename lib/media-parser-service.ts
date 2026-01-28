@@ -12,35 +12,9 @@ export class MediaParserService {
    * @param imageSource Buffer atau URL gambar
    */
   async extractTextFromImage(imageSource: Buffer | string): Promise<string> {
-    try {
-      console.log('[MediaParser] Extracting text from image...');
-      
-      let input: Buffer;
-      if (typeof imageSource === 'string') {
-        const response = await axios.get(imageSource, { responseType: 'arraybuffer' });
-        input = Buffer.from(response.data);
-      } else {
-        input = imageSource;
-      }
-
-      // Pre-processing dengan sharp untuk meningkatkan akurasi OCR
-      // Mengubah ke grayscale dan meningkatkan kontras
-      const processedImage = await sharp(input)
-        .grayscale()
-        .normalize()
-        .toBuffer();
-
-      // Dynamic import to avoid server-side initialization issues
-      const Tesseract = await import('tesseract.js');
-      const result = await Tesseract.recognize(processedImage, 'ind+eng', {
-        logger: (m: { status: string; progress: number }) => console.log(`[OCR Progress] ${m.status}: ${Math.round(m.progress * 100)}%`)
-      });
-
-      return result.data.text;
-    } catch (error: any) {
-      console.error('[MediaParser] OCR Error:', error.message);
-      throw new Error(`Gagal mengekstrak teks dari gambar: ${error.message}`);
-    }
+    console.warn('[MediaParser] Image OCR is disabled per user request.');
+    // Throw specific error to inform user
+    throw new Error("Fitur OCR gambar sedang dinonaktifkan. Mohon kirimkan dokumen dalam format PDF agar terbaca dengan baik.");
   }
 
   /**

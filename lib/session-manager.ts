@@ -37,16 +37,32 @@ export class SessionManager {
   }
 
   async updateSessionState(phoneNumber: string, newState: any) {
+    // Fetch current session to get existing state
+    const currentSession = await this.getSession(phoneNumber);
+    const existingState = (currentSession?.sessionState || {}) as any;
+    
+    // Merge new state with existing state (deep merge for arrays like createdForms)
+    const mergedState = { 
+      ...existingState, 
+      ...newState,
+      // Special handling for array merging (like createdForms)
+      ...(newState.createdForms && existingState.createdForms ? {
+        createdForms: [...existingState.createdForms, ...newState.createdForms]
+      } : {})
+    };
+    
+    // console.log(`[SessionManager] Merging state for ${phoneNumber}`);
+    
     // Update DB
     const session = await db.whatsappSession.upsert({
       where: { phoneNumber },
       update: { 
-          sessionState: newState,
+          sessionState: mergedState,
           lastActivity: new Date()
       },
       create: {
           phoneNumber,
-          sessionState: newState
+          sessionState: mergedState
       }
     });
 

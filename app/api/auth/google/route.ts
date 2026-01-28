@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const client = new GoogleFormsOAuthClient();
     const authUrl = client.getAuthUrl();
     
-    console.log('[OAuth] Redirecting to Google auth URL');
+    console.log('[OAuth] Redirecting to Google auth URL:', authUrl);
     return NextResponse.redirect(authUrl);
   } catch (error: any) {
     console.error('[OAuth] Error generating auth URL:', error);

@@ -49,6 +49,18 @@ export async function POST(req: Request) {
     }
 
     const chatId = payload.from;
+    
+    // --- WHITELIST FILTER FOR PRIVATE CHATS ---
+    // Only apply whitelist to private chats (not groups)
+    const isGroupChat = chatId.endsWith('@g.us');
+    if (!isGroupChat) {
+        const allowedUsers = process.env.ALLOWED_USERS?.split(',').map(u => u.trim()).filter(Boolean) || [];
+        if (allowedUsers.length > 0 && !allowedUsers.includes(chatId)) {
+            console.log(`[Webhook] Private chat from unauthorized user: ${chatId}`);
+            return NextResponse.json({ status: 'ignored', reason: 'unauthorized_user' });
+        }
+    }
+    
     let message = payload.body || ''; 
     const messageId = payload.id;
 
@@ -230,32 +242,33 @@ export async function POST(req: Request) {
         }
 
         // 2. Check if Bot is Mentioned
-        // WAHA payloads typically have mentionedIds in payload.mentionedIds or payload._data.mentionedIds
         const mentionedIds: string[] = payload.mentionedIds || (payload._data && payload._data.mentionedIds) || [];
         const botId = botNumber + '@s.whatsapp.net';
         
-        // Debug mentions
-        console.log(`[Webhook] Mentions: ${JSON.stringify(mentionedIds)}. Looking for: ${botId}`);
+        console.log(`[Webhook] Mentions check: looking for ${botId} in ${JSON.stringify(mentionedIds)}`);
 
         let isMentioned = mentionedIds.includes(botId);
 
         // Fallback: Check if message body contains @BotNumber OR @Alias
-        // This handles cases where metadata is missing or user tags by Contact Name
         if (!isMentioned) {
-             const aliases = (process.env.BOT_MENTION_NAMES || '').split(',').map(n => n.trim().toLowerCase()).filter(n => n.length > 0);
+             const aliases = (process.env.BOT_MENTION_NAMES || '').split(',').map(n => n.trim()).filter(n => n.length > 0);
              const lowerMsg = message.toLowerCase();
              
              // Check @BotNumber
              const botLid = process.env.BOT_LID;
              if (message.includes(botNumber) || (botLid && message.includes('@' + botLid))) {
-                 console.log(`[Webhook] Fallback: Mention found via Phone Number or LID.`);
+                 console.log(`[Webhook] Fallback Mention: Found via Phone Number (${botNumber}) or LID.`);
                  isMentioned = true;
              } 
-             // Check Aliases
+             // Check Aliases with Word Boundaries to avoid false positives (e.g. "keren" matching "ren")
              else {
                  for (const alias of aliases) {
-                     if (lowerMsg.includes(alias)) {
-                         console.log(`[Webhook] Fallback: Mention found via Alias '@${alias}'.`);
+                     // Escape special characters in alias and use word boundaries
+                     const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                     const regex = new RegExp(`(^|\\s|@)${escapedAlias}(\\s|$|\\?|\\.|!|,|:|;)`, 'i');
+                     
+                     if (regex.test(message)) {
+                         console.log(`[Webhook] Fallback Mention: Found via Alias '${alias}' (Regex Match).`);
                          isMentioned = true;
                          break;
                      }
@@ -264,11 +277,11 @@ export async function POST(req: Request) {
         }
 
         if (!isMentioned) {
-             console.log(`[Webhook] Ignored group ${chatId} (bot not mentioned)`);
+             console.log(`[Webhook] Ignored group ${chatId}: Bot not mentioned. Msg: "${message.substring(0, 30)}..."`);
              return NextResponse.json({ status: 'ignored', reason: 'not_mentioned' });
         }
 
-        console.log(`[Webhook] Group Message Accepted: Mentioned in allowed group.`);
+        console.log(`[Webhook] Group Message Accepted: ID=${chatId}, Mentioned=true`);
     }
     
     // Ensure message is a string
@@ -321,17 +334,28 @@ export async function POST(req: Request) {
         }
     }
 
-    const reply = await orchestrator.handleMessage(message, {
+    const response = await orchestrator.handleMessage(message, {
         phoneNumber: chatId,
         sessionState: session.sessionState,
         messageId: messageId,
         senderName: senderName
     });
 
-    console.log(`[Webhook] AI Replied: ${reply.substring(0, 50)}...`);
+    const replyText = response.reply;
+    console.log(`[Webhook] AI Replied: ${replyText.substring(0, 50)}...`);
+
+    // --- PERSISTENCE HANDLING ---
+    // Always save lastBotResponse for follow-up context
+    const contextState = {
+      ...(response.newState || {}),
+      lastBotResponse: replyText.substring(0, 500) // Limit to 500 chars to save space
+    };
+    
+    console.log(`[Webhook] Persisting session state for ${chatId}`);
+    await sessionManager.updateSessionState(chatId, contextState);
     
     // Save assistant message
-    await sessionManager.saveMessage(chatId, 'assistant', reply);
+    await sessionManager.saveMessage(chatId, 'assistant', replyText);
 
     // Determine mentions for reply
     const mentions: string[] = [];
@@ -345,7 +369,7 @@ export async function POST(req: Request) {
     }
 
     console.log(`[Webhook] Sending response via WAHA to ${chatId}... (Mentions: ${mentions.join(', ')})`);
-    await waha.sendText(chatId, reply, mentions);
+    await waha.sendText(chatId, replyText, mentions);
     console.log(`[Webhook] Response sent successfully.`);
 
 
