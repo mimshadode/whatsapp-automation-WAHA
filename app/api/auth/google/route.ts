@@ -9,13 +9,25 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   try {
+    console.log('[OAuth] Starting auth flow...');
+    console.log('[OAuth] Config Check:', {
+      hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI || 'NOT_SET_USING_DEFAULT',
+    });
+
     const client = new GoogleFormsOAuthClient();
     const authUrl = client.getAuthUrl();
     
-    console.log('[OAuth] Redirecting to Google auth URL:', authUrl);
+    console.log('[OAuth] Generated URL:', authUrl);
     return NextResponse.redirect(authUrl);
   } catch (error: any) {
     console.error('[OAuth] Error generating auth URL:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: error.message,
+      env_check: {
+        has_redirect_uri: !!process.env.GOOGLE_REDIRECT_URI
+      }
+    }, { status: 500 });
   }
 }
