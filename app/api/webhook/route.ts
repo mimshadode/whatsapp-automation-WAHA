@@ -375,8 +375,8 @@ export async function POST(req: Request) {
         }
     }
 
-    console.log(`[Webhook] Sending response via WAHA to ${chatId}... (Mentions: ${mentions.join(', ')})`);
-    await waha.sendText(chatId, replyText, mentions);
+    console.log(`[Webhook] Sending response via WAHA to ${chatId}... (MsgID: ${messageId})`);
+    await waha.sendText(chatId, replyText, messageId, mentions);
     console.log(`[Webhook] Response sent successfully.`);
 
 

@@ -9,6 +9,7 @@ export interface ToolContext {
   phoneNumber: string;
   sessionState: any;
   senderName?: string;
+  messageId?: string;
 }
 
 export interface ToolResponse {

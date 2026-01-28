@@ -77,10 +77,10 @@ export class WAHAClient {
   /**
    * Send text with simulated human behavior (typing indicator + random delay)
    */
-  async sendText(chatId: string, text: string, mentions?: string[]) {
+  async sendText(chatId: string, text: string, messageId?: string, mentions?: string[]) {
     try {
       // 1. Start typing
-      await this.startTyping(chatId);
+      await this.startTyping(chatId, messageId);
 
       // 2. Random delay (2-5 seconds) to simulate reading/thinking
       // Calculate delay based on length? For now random is safe enough

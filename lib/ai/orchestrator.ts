@@ -111,7 +111,7 @@ export class AIOrchestrator {
       const ackResponse = await this.biznet.generateSpecificResponse(prompt, message);
       
       // Send the acknowledgment immediately
-      await this.waha.sendText(context.phoneNumber, ackResponse.trim());
+      await this.waha.sendText(context.phoneNumber, ackResponse.trim(), context.messageId);
     } catch (error) {
       console.error('[AIOrchestrator] Error sending acknowledgment:', error);
       // Fail silently and let the main flow continue

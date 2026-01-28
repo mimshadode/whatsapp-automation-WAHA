@@ -74,9 +74,18 @@ export class GoogleFormsOAuthClient {
    * Exchange authorization code for tokens
    */
   async getTokensFromCode(code: string) {
-    const { tokens } = await this.oauth2Client.getToken(code);
-    this.oauth2Client.setCredentials(tokens);
-    return tokens;
+    console.log('[GoogleFormsOAuth] Exchanging code for tokens...');
+    console.log('[GoogleFormsOAuth] Client ID:', process.env.GOOGLE_CLIENT_ID?.substring(0, 10) + '...');
+    console.log('[GoogleFormsOAuth] Redirect URI:', (this.oauth2Client as any)._redirectUri);
+    
+    try {
+      const { tokens } = await this.oauth2Client.getToken(code);
+      this.oauth2Client.setCredentials(tokens);
+      return tokens;
+    } catch (error: any) {
+      console.error('[GoogleFormsOAuth] Token Exchange Error:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**
@@ -181,8 +190,12 @@ export class GoogleFormsOAuthClient {
       try {
         const linkResult = await this.linkSpreadsheet(formId, title);
         spreadsheetUrl = linkResult?.spreadsheetUrl;
+        if (linkResult) {
+          console.log('[GoogleFormsOAuth] Spreadsheet linking attempt successful.');
+        }
       } catch (linkError) {
         console.warn('[GoogleFormsOAuth] Failed to link spreadsheet, but form was created:', linkError);
+        console.error('[GoogleFormsOAuth] Details of spreadsheet linking error:', JSON.stringify(linkError, Object.getOwnPropertyNames(linkError), 2));
         // We don't throw here to ensure the user still gets the form URLs
       }
 
@@ -225,6 +238,8 @@ export class GoogleFormsOAuthClient {
       });
 
       const result = await response.json();
+      console.log('[GoogleFormsOAuth] Apps Script Response:', JSON.stringify(result));
+      
       if (result.success) {
         console.log(`[GoogleFormsOAuth] Spreadsheet linked successfully! URL: ${result.spreadsheetUrl}`);
         return result;
