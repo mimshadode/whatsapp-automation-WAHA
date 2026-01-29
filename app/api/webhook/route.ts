@@ -71,14 +71,6 @@ export async function POST(req: Request) {
     let message = payload.body || ''; 
     const messageId = payload.id;
 
-    // --- STRIP MENTIONS IN GROUPS (NEW) ---
-    // In group chats, messages directed at the bot usually start with @bot_number
-    if (isGroupChat && message.startsWith('@')) {
-        // Regex to remove the @number part at the start (supports common WA formats)
-        // Matches @ followed by digits, then potentially a space
-        message = message.replace(/^@\d+\s*/, '').trim();
-        console.log(`[Webhook] Stripped mention from group message. New body: "${message}"`);
-    }
 
     // --- MEDIA HANDLING (NEW) ---
     // WAHA NOWEB may have different media detection
@@ -286,10 +278,17 @@ export async function POST(req: Request) {
         // 2. Check if Bot is Mentioned
         const mentionedIds: string[] = payload.mentionedIds || (payload._data && payload._data.mentionedIds) || [];
         const botId = botNumber + '@s.whatsapp.net';
+        const botLid = process.env.BOT_LID ? process.env.BOT_LID + '@lid' : ''; // Expecting BOT_LID to be just the number part in env
         
-        console.log(`[Webhook] Mentions check: looking for ${botId} in ${JSON.stringify(mentionedIds)}`);
+        console.log(`[Webhook] Mentions check: looking for ${botId} ${botLid ? 'or ' + botLid : ''} in ${JSON.stringify(mentionedIds)}`);
 
         let isMentioned = mentionedIds.includes(botId);
+        
+        // Also check LID if available (Linked Device ID)
+        if (!isMentioned && botLid && mentionedIds.includes(botLid)) {
+             console.log(`[Webhook] Bot mentioned via LID: ${botLid}`);
+             isMentioned = true;
+        }
 
         // Fallback: Check if message body contains @BotNumber OR @Alias
         if (!isMentioned) {
@@ -336,6 +335,14 @@ export async function POST(req: Request) {
         }
 
         console.log(`[Webhook] Group Message Accepted: ID=${chatId}, Mentioned=true`);
+    }
+
+    // --- CLEANUP MESSAGE FOR AI ---
+    // Now that we've validated the bot is mentioned, strip the mention from the message
+    // so the AI processes "halo" instead of "@628... halo"
+    if (isGroupChat && message.startsWith('@')) {
+        message = message.replace(/^@\d+\s*/, '').trim();
+        console.log(`[Webhook] Stripped mention for AI processing. Clean body: "${message}"`);
     }
 
     // Save user message

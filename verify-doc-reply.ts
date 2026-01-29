@@ -25,7 +25,7 @@ async function verifyDocumentReply() {
     console.log('=== Verifying Document Reply Logic ===');
     
     const mockWaha = new MockWAHA() as any;
-    const orchestrator = new AIOrchestrator(mockWaha);
+    const orchestrator = new AIOrchestrator();
     const parser = new MediaParserService();
 
     // 1. Simulate the text extraction part from the webhook

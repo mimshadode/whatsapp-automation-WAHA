@@ -39,7 +39,19 @@ export class GeneralQATool implements AITool {
       }
 
       // Priority: Detect language and tone from the CURRENT query
-      const fullPrompt = this.getSystemPrompt() + contextStr + 
+      let systemPrompt = this.getSystemPrompt();
+      const botName = sessionState.metadata?.botName;
+      
+      if (botName) {
+        console.log(`[GeneralQATool] Using dynamic bot name: ${botName}`);
+        // Replace default name definition with dynamic one
+        systemPrompt = systemPrompt.replace(/Nama: Clarabit \/ Joni\./g, `Nama: ${botName}.`);
+        systemPrompt = systemPrompt.replace(/benama Clarabit \(bisa dipanggil Joni\)\./g, `bernama ${botName}.`);
+        // Add explicit instruction to override any other identity
+        systemPrompt += `\n\nPENTING: Nama kamu sekarang adalah "${botName}". Lupakan nama Clarabit/Joni jika ditanya siapa namamu.`;
+      }
+
+      const fullPrompt = systemPrompt + contextStr + 
         '\n\nPENTING: Hasilkan jawaban dalam bahasa yang SAMA dengan [PESAN USER] di bawah.';
       let response = await this.biznet.generateSpecificResponse(fullPrompt, query);
 
@@ -53,7 +65,7 @@ export class GeneralQATool implements AITool {
       // Check if bot agreed to a name change
       // Pattern: "Oke, panggil saya [Name] mulai sekarang"
       let newBotName = null;
-      const nameChangeMatch = response.match(/panggil saya\s+([a-zA-Z0-9]+)\s+mulai sekarang/i);
+      const nameChangeMatch = response.match(/panggil saya\s+([a-zA-Z0-9\s]+?)\s+mulai sekarang/i);
       if (nameChangeMatch && nameChangeMatch[1]) {
           newBotName = nameChangeMatch[1];
           console.log(`[GeneralQATool] Detected name change to: ${newBotName}`);
