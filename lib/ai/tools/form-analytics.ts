@@ -29,17 +29,18 @@ export class FormAnalyticsTool implements AITool {
       const session = context.sessionState || {};
       const createdForms = session.createdForms || [];
 
+      const { BiznetGioClient } = await import('../../biznetgio-client');
+      const ai = new BiznetGioClient();
+
       if (!createdForms || createdForms.length === 0) {
+        const errorPrompt = `Inform the user that no forms are recorded in memory in the same language as their query: "${query}". Be helpful and friendly. No bold formatting.`;
+        const errorReply = await ai.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: '❌ Belum ada form yang tercatat di ingatan saya. Saya hanya bisa mengecek form yang saya buat setelah fitur ini diaktifkan.'
+          reply: `❌ ${errorReply.replace(/\*/g, '')}`
         };
       }
 
-      // 1. Use AI to extract form name from query
-      const { BiznetGioClient } = await import('../../biznetgio-client');
-      const ai = new BiznetGioClient();
-      
       // Check if this is a follow-up request (no form name mentioned, but asking about data like email)
       const followUpPatterns = ['sertakan', 'tambahkan', 'dengan email', 'emailnya', 'lihat email', 'tampilkan email'];
       const isFollowUpRequest = followUpPatterns.some(p => query.toLowerCase().includes(p));
@@ -74,9 +75,13 @@ export class FormAnalyticsTool implements AITool {
 
       if (!matchedForm) {
         const formList = createdForms.map((f: any) => `- ${f.title}`).join('\n');
+        const errorPrompt = `Inform the user that a form with name "${formName}" was not found in the same language as their query: "${query}". 
+        Mention these available forms:\n${formList}\nNo bold formatting.`;
+        const errorReply = await ai.generateSpecificResponse(errorPrompt, query);
+        
         return {
           success: false,
-          reply: `❌ Maaf, saya tidak menemukan form dengan nama "${formName}".\n\nDaftar form yang saya ingat:\n${formList}`
+          reply: `❌ ${errorReply.replace(/\*/g, '')}`
         };
       }
 
@@ -160,7 +165,7 @@ export class FormAnalyticsTool implements AITool {
       // Generate natural response using AI with WhatsApp formatting
       const responsePrompt = Prompts.analyticsResponse({
         formTitle: responseData.formTitle,
-        totalResponses: `${responseData.totalResponses} orang`,
+        totalResponses: `${responseData.totalResponses}`,
         lastUpdateTxt: responseData.lastUpdateTxt,
         respondentNames: responseData.respondentNames,
         formUrl: responseData.formUrl,
@@ -170,11 +175,11 @@ export class FormAnalyticsTool implements AITool {
 
       const finalReply = await ai.generateSpecificResponse(responsePrompt, query);
 
-      // Post-process: Convert escaped characters to actual formatting
+      // Post-process: Convert escaped characters to actual formatting and strip markdown-style bold
       const formattedReply = finalReply
         .trim()
         .replace(/\\n/g, '\n')  // Convert \n to actual newline
-        .replace(/\\\*/g, '*');  // Keep asterisks for bold (no conversion needed, just unescape if double-escaped)
+        .replace(/\*\*/g, '');  // Strip double asterisks (markdown) but keep single for WhatsApp
 
       return {
         success: true,

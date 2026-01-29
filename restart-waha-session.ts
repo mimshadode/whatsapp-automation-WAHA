@@ -1,4 +1,8 @@
 import axios from 'axios';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env
+dotenv.config();
 
 const WAHA_API_URL = process.env.WAHA_API_URL || 'http://localhost:5000';
 const WAHA_API_KEY = process.env.WAHA_API_KEY || '0f1989b27ec64181b10f1af89376fd91';

@@ -1,4 +1,5 @@
 # Google Form Automation System Architecture
+
 ## LLM-Powered WhatsApp Integration
 
 **Version:** 1.0  
@@ -29,6 +30,7 @@
 This document outlines the architecture for an intelligent Google Form automation system that leverages WhatsApp as the primary user interface. The system uses Large Language Models (LLMs) via Biznet Gio API to process natural language inputs from users, extract structured data, and automatically populate Google Forms.
 
 **Key Capabilities:**
+
 - Natural language form filling via WhatsApp
 - Intelligent data extraction and validation using LLM
 - Real-time form submission to Google Forms
@@ -162,6 +164,7 @@ The system consists of four primary layers:
 **Repository:** https://waha.devlike.pro/docs/overview/quick-start/
 
 **Responsibilities:**
+
 - Manage WhatsApp Web sessions
 - Receive incoming messages via webhooks
 - Send outgoing messages to users
@@ -169,6 +172,7 @@ The system consists of four primary layers:
 - Maintain connection state with WhatsApp servers
 
 **Key Features:**
+
 - Multiple session support
 - QR code authentication
 - Webhook-based message delivery
@@ -176,6 +180,7 @@ The system consists of four primary layers:
 - Session persistence
 
 **Configuration:**
+
 ```yaml
 WAHA_CONFIG:
   webhook_url: "https://your-nextjs-app.com/api/webhook"
@@ -187,6 +192,7 @@ WAHA_CONFIG:
 ```
 
 **API Endpoints Used:**
+
 - `POST /api/sessions/start` - Initialize WhatsApp session
 - `POST /api/sendText` - Send text messages
 - `POST /api/sendImage` - Send images (confirmations, receipts)
@@ -200,6 +206,7 @@ WAHA_CONFIG:
 **Version:** Next.js 14+ (App Router recommended)
 
 **Responsibilities:**
+
 - Handle incoming webhooks from WAHA
 - Process business logic
 - Orchestrate LLM interactions
@@ -208,6 +215,7 @@ WAHA_CONFIG:
 - Provide API endpoints for all operations
 
 **Directory Structure:**
+
 ```
 nextjs-app/
 ├── app/
@@ -248,6 +256,7 @@ nextjs-app/
 **Key Components:**
 
 #### a. Webhook Handler (`/api/webhook/route.ts`)
+
 ```typescript
 // Receives messages from WAHA
 // Validates webhook signature
@@ -256,6 +265,7 @@ nextjs-app/
 ```
 
 #### b. Message Processor (`lib/message-processor.ts`)
+
 ```typescript
 // Parses incoming messages
 // Maintains conversation context
@@ -264,6 +274,7 @@ nextjs-app/
 ```
 
 #### c. Session Manager (`lib/session-manager.ts`)
+
 ```typescript
 // Tracks user conversation state
 // Stores partial form data
@@ -272,6 +283,7 @@ nextjs-app/
 ```
 
 #### d. Form Processor (`lib/form-processor.ts`)
+
 ```typescript
 // Validates extracted data
 // Maps data to form fields
@@ -288,6 +300,7 @@ nextjs-app/
 **Authentication:** Bearer token
 
 **Responsibilities:**
+
 - Natural language understanding
 - Entity extraction from user messages
 - Data validation and formatting
@@ -302,7 +315,7 @@ nextjs-app/
 interface BiznetGioRequest {
   model: string;
   messages: Array<{
-    role: 'system' | 'user' | 'assistant';
+    role: "system" | "user" | "assistant";
     content: string;
   }>;
   temperature?: number;
@@ -330,31 +343,31 @@ interface BiznetGioResponse {
 
 class BiznetGioClient {
   private apiKey: string;
-  private baseURL: string = 'https://api.biznetgio.ai/v1';
+  private baseURL: string = "https://api.biznetgio.ai/v1";
 
   async processMessage(
     userMessage: string,
     conversationHistory: Message[],
-    formSchema: FormSchema
+    formSchema: FormSchema,
   ): Promise<ExtractedData> {
     const systemPrompt = this.buildSystemPrompt(formSchema);
-    
+
     const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
+        model: "openai/gpt-oss-20b",
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: "system", content: systemPrompt },
           ...conversationHistory,
-          { role: 'user', content: userMessage }
+          { role: "user", content: userMessage },
         ],
         temperature: 0.3, // Lower for more consistent extraction
-        max_tokens: 1000
-      })
+        max_tokens: 1000,
+      }),
     });
 
     const data: BiznetGioResponse = await response.json();
@@ -392,16 +405,13 @@ Response Format:
 
 1. **Intent Detection**
    - Determine if user wants to fill a form, check status, or cancel
-   
 2. **Entity Extraction**
    - Extract name, email, phone, address, dates, etc.
    - Handle various input formats
-   
 3. **Data Validation**
    - Verify email format
    - Validate phone numbers
    - Check date ranges
-   
 4. **Conversational Flow**
    - Ask clarifying questions
    - Confirm extracted information
@@ -415,6 +425,7 @@ Response Format:
 **Authentication:** OAuth 2.0 or Service Account
 
 **Responsibilities:**
+
 - Fetch form schema and field definitions
 - Submit form responses programmatically
 - Validate field requirements
@@ -425,18 +436,18 @@ Response Format:
 ```typescript
 // lib/google-forms-client.ts
 
-import { google } from 'googleapis';
+import { google } from "googleapis";
 
 class GoogleFormsClient {
   private forms;
-  
+
   constructor(credentials: ServiceAccountCredentials) {
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/forms']
+      scopes: ["https://www.googleapis.com/auth/forms"],
     });
-    
-    this.forms = google.forms({ version: 'v1', auth });
+
+    this.forms = google.forms({ version: "v1", auth });
   }
 
   async getFormSchema(formId: string): Promise<FormSchema> {
@@ -446,32 +457,32 @@ class GoogleFormsClient {
 
   async submitResponse(
     formId: string,
-    answers: Record<string, any>
+    answers: Record<string, any>,
   ): Promise<SubmissionResult> {
     // Google Forms doesn't have direct API submission
     // Use one of these approaches:
-    
+
     // Option 1: Use Google Apps Script as middleware
     // Option 2: Use form prefill URLs
     // Option 3: Use Google Sheets API (if form is linked)
-    
+
     const prefillUrl = this.generatePrefillUrl(formId, answers);
-    
+
     // Simulate submission or use headless browser
     return await this.submitViaPrefill(prefillUrl);
   }
 
   private generatePrefillUrl(
     formId: string,
-    answers: Record<string, any>
+    answers: Record<string, any>,
   ): string {
     const baseUrl = `https://docs.google.com/forms/d/e/${formId}/formResponse`;
     const params = new URLSearchParams();
-    
+
     Object.entries(answers).forEach(([fieldId, value]) => {
       params.append(`entry.${fieldId}`, String(value));
     });
-    
+
     return `${baseUrl}?${params.toString()}`;
   }
 }
@@ -485,24 +496,26 @@ For more reliable submissions, deploy a Google Apps Script:
 // Google Apps Script (deployed as web app)
 
 function doPost(e) {
-  const formId = 'YOUR_FORM_ID';
+  const formId = "YOUR_FORM_ID";
   const form = FormApp.openById(formId);
   const data = JSON.parse(e.postData.contents);
-  
+
   const formResponse = form.createResponse();
-  
-  data.answers.forEach(answer => {
+
+  data.answers.forEach((answer) => {
     const item = form.getItemById(answer.itemId);
     const response = item.asTextItem().createResponse(answer.value);
     formResponse.withItemResponse(response);
   });
-  
+
   formResponse.submit();
-  
-  return ContentService.createTextOutput(JSON.stringify({
-    success: true,
-    responseId: formResponse.getId()
-  })).setMimeType(ContentService.MimeType.JSON);
+
+  return ContentService.createTextOutput(
+    JSON.stringify({
+      success: true,
+      responseId: formResponse.getId(),
+    }),
+  ).setMimeType(ContentService.MimeType.JSON);
 }
 ```
 
@@ -511,6 +524,7 @@ function doPost(e) {
 ### 5. Database Layer (PostgreSQL)
 
 **Responsibilities:**
+
 - Store conversation history
 - Track form submissions
 - Maintain user sessions
@@ -591,6 +605,7 @@ CREATE INDEX idx_audit_created ON audit_logs(created_at);
 ### 6. Cache Layer (Redis)
 
 **Responsibilities:**
+
 - Store active session state
 - Rate limiting
 - Temporary data storage
@@ -610,12 +625,12 @@ if (count === 1) {
   await redis.expire(rateLimitKey, 60); // 1 minute window
 }
 if (count > 10) {
-  throw new Error('Rate limit exceeded');
+  throw new Error("Rate limit exceeded");
 }
 
 // Message queue
-await redis.lpush('message_queue', JSON.stringify(message));
-const message = await redis.brpop('message_queue', 0);
+await redis.lpush("message_queue", JSON.stringify(message));
+const message = await redis.brpop("message_queue", 0);
 ```
 
 ---
@@ -686,16 +701,16 @@ const message = await redis.brpop('message_queue', 0);
      "text": "Great! I'll help you register. What's your full name?"
    }
    ↓
-8. User responds: "My name is John Doe"
+8. User responds: "My name is Clarabit Doe"
    ↓
 9. Repeat steps 2-7 until all fields collected
    ↓
 10. Final Confirmation:
     "Please confirm your details:
-    Name: John Doe
-    Email: john@example.com
+    Name: Clarabit Doe
+    Email: Clarabit@example.com
     Phone: +1234567890
-    
+
     Reply 'CONFIRM' to submit or 'EDIT' to make changes"
     ↓
 11. User: "CONFIRM"
@@ -741,13 +756,13 @@ const message = await redis.brpop('message_queue', 0);
 
 **Key Endpoints:**
 
-| Endpoint | Method | Purpose | Request Body |
-|----------|--------|---------|--------------|
-| `/api/sessions/start` | POST | Start WhatsApp session | `{ "name": "session-name" }` |
-| `/api/sendText` | POST | Send text message | `{ "session": "name", "chatId": "phone@c.us", "text": "message" }` |
-| `/api/sendImage` | POST | Send image | `{ "session": "name", "chatId": "phone@c.us", "file": { "url": "..." } }` |
-| `/api/sessions` | GET | List sessions | - |
-| `/api/{session}/auth/qr` | GET | Get QR code | - |
+| Endpoint                 | Method | Purpose                | Request Body                                                              |
+| ------------------------ | ------ | ---------------------- | ------------------------------------------------------------------------- |
+| `/api/sessions/start`    | POST   | Start WhatsApp session | `{ "name": "session-name" }`                                              |
+| `/api/sendText`          | POST   | Send text message      | `{ "session": "name", "chatId": "phone@c.us", "text": "message" }`        |
+| `/api/sendImage`         | POST   | Send image             | `{ "session": "name", "chatId": "phone@c.us", "file": { "url": "..." } }` |
+| `/api/sessions`          | GET    | List sessions          | -                                                                         |
+| `/api/{session}/auth/qr` | GET    | Get QR code            | -                                                                         |
 
 **Webhook Configuration:**
 
@@ -799,9 +814,9 @@ POST /chat/completions
 
 ```typescript
 interface ChatCompletionRequest {
-  model: 'openai/gpt-oss-20b';
+  model: "openai/gpt-oss-20b";
   messages: Array<{
-    role: 'system' | 'user' | 'assistant';
+    role: "system" | "user" | "assistant";
     content: string;
   }>;
   temperature?: number; // 0-2, default 1
@@ -820,15 +835,15 @@ interface ChatCompletionResponse {
   id: string;
   created: number;
   model: string;
-  object: 'chat.completion';
+  object: "chat.completion";
   choices: Array<{
     index: number;
     message: {
-      role: 'assistant';
+      role: "assistant";
       content: string;
       reasoning_content?: string;
     };
-    finish_reason: 'stop' | 'length' | 'content_filter';
+    finish_reason: "stop" | "length" | "content_filter";
   }>;
   usage: {
     prompt_tokens: number;
@@ -842,13 +857,13 @@ interface ChatCompletionResponse {
 
 ```typescript
 try {
-  const response = await fetch('https://api.biznetgio.ai/v1/chat/completions', {
-    method: 'POST',
+  const response = await fetch("https://api.biznetgio.ai/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.BIZNETGIO_API_KEY}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.BIZNETGIO_API_KEY}`,
     },
-    body: JSON.stringify(request)
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {
@@ -859,7 +874,7 @@ try {
     }
     if (response.status === 401) {
       // Invalid API key
-      throw new Error('Authentication failed');
+      throw new Error("Authentication failed");
     }
     // Handle other errors
   }
@@ -867,7 +882,7 @@ try {
   return await response.json();
 } catch (error) {
   // Network error, timeout, etc.
-  logger.error('LLM API error', error);
+  logger.error("LLM API error", error);
   throw error;
 }
 ```
@@ -935,7 +950,7 @@ Request:
   "answers": [
     {
       "itemId": "12345",
-      "value": "John Doe"
+      "value": "Clarabit Doe"
     }
   ]
 }
@@ -952,17 +967,20 @@ Response:
 
 ```typescript
 // lib/google-auth.ts
-import { google } from 'googleapis';
+import { google } from "googleapis";
 
 export function getGoogleAuth() {
   return new google.auth.GoogleAuth({
     credentials: {
       client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, '\n'),
+      private_key: process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(
+        /\\n/g,
+        "\n",
+      ),
     },
     scopes: [
-      'https://www.googleapis.com/auth/forms.body.readonly',
-      'https://www.googleapis.com/auth/forms.responses.readonly',
+      "https://www.googleapis.com/auth/forms.body.readonly",
+      "https://www.googleapis.com/auth/forms.responses.readonly",
     ],
   });
 }
@@ -974,53 +992,53 @@ export function getGoogleAuth() {
 
 ### Backend
 
-| Component | Technology | Version | Purpose |
-|-----------|-----------|---------|---------|
-| **Runtime** | Node.js | 20.x LTS | JavaScript runtime |
-| **Framework** | Next.js | 14+ | Full-stack React framework |
-| **Language** | TypeScript | 5.x | Type-safe development |
-| **Database** | PostgreSQL | 15+ | Primary data store |
-| **Cache** | Redis | 7.x | Session cache & queues |
-| **ORM** | Prisma | 5.x | Database toolkit |
+| Component     | Technology | Version  | Purpose                    |
+| ------------- | ---------- | -------- | -------------------------- |
+| **Runtime**   | Node.js    | 20.x LTS | JavaScript runtime         |
+| **Framework** | Next.js    | 14+      | Full-stack React framework |
+| **Language**  | TypeScript | 5.x      | Type-safe development      |
+| **Database**  | PostgreSQL | 15+      | Primary data store         |
+| **Cache**     | Redis      | 7.x      | Session cache & queues     |
+| **ORM**       | Prisma     | 5.x      | Database toolkit           |
 
 ### Frontend (Dashboard)
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **UI Framework** | React 18+ | Component library |
-| **Styling** | Tailwind CSS | Utility-first CSS |
-| **Charts** | Recharts | Data visualization |
-| **Forms** | React Hook Form | Form management |
-| **State** | Zustand | Client state management |
+| Component        | Technology      | Purpose                 |
+| ---------------- | --------------- | ----------------------- |
+| **UI Framework** | React 18+       | Component library       |
+| **Styling**      | Tailwind CSS    | Utility-first CSS       |
+| **Charts**       | Recharts        | Data visualization      |
+| **Forms**        | React Hook Form | Form management         |
+| **State**        | Zustand         | Client state management |
 
 ### Infrastructure
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Container** | Docker | Containerization |
-| **Orchestration** | Docker Compose / Kubernetes | Container management |
-| **Reverse Proxy** | Nginx | Load balancing & SSL |
-| **Process Manager** | PM2 | Node.js process management |
+| Component           | Technology                  | Purpose                    |
+| ------------------- | --------------------------- | -------------------------- |
+| **Container**       | Docker                      | Containerization           |
+| **Orchestration**   | Docker Compose / Kubernetes | Container management       |
+| **Reverse Proxy**   | Nginx                       | Load balancing & SSL       |
+| **Process Manager** | PM2                         | Node.js process management |
 
 ### External Services
 
-| Service | Purpose | Provider |
-|---------|---------|----------|
-| **WhatsApp API** | Messaging interface | WAHA (self-hosted) |
-| **LLM API** | Natural language processing | Biznet Gio |
-| **Forms API** | Form submission | Google Forms |
-| **Monitoring** | Application monitoring | Sentry / DataDog |
-| **Logging** | Centralized logging | Winston / Pino |
+| Service          | Purpose                     | Provider           |
+| ---------------- | --------------------------- | ------------------ |
+| **WhatsApp API** | Messaging interface         | WAHA (self-hosted) |
+| **LLM API**      | Natural language processing | Biznet Gio         |
+| **Forms API**    | Form submission             | Google Forms       |
+| **Monitoring**   | Application monitoring      | Sentry / DataDog   |
+| **Logging**      | Centralized logging         | Winston / Pino     |
 
 ### Development Tools
 
-| Tool | Purpose |
-|------|---------|
-| **ESLint** | Code linting |
-| **Prettier** | Code formatting |
-| **Jest** | Unit testing |
-| **Playwright** | E2E testing |
-| **Husky** | Git hooks |
+| Tool           | Purpose         |
+| -------------- | --------------- |
+| **ESLint**     | Code linting    |
+| **Prettier**   | Code formatting |
+| **Jest**       | Unit testing    |
+| **Playwright** | E2E testing     |
+| **Husky**      | Git hooks       |
 
 ---
 
@@ -1066,7 +1084,7 @@ export function getGoogleAuth() {
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 
 services:
   nextjs:
@@ -1150,40 +1168,40 @@ spec:
         app: nextjs
     spec:
       containers:
-      - name: nextjs
-        image: your-registry/nextjs-app:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: app-secrets
-              key: database-url
-        - name: BIZNETGIO_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: app-secrets
-              key: biznetgio-key
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "500m"
-          limits:
-            memory: "1Gi"
-            cpu: "1000m"
-        livenessProbe:
-          httpGet:
-            path: /api/health
-            port: 3000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /api/ready
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: nextjs
+          image: your-registry/nextjs-app:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: database-url
+            - name: BIZNETGIO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: biznetgio-key
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
@@ -1193,8 +1211,8 @@ spec:
   selector:
     app: nextjs
   ports:
-  - port: 80
-    targetPort: 3000
+    - port: 80
+      targetPort: 3000
   type: LoadBalancer
 ```
 
@@ -1263,7 +1281,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: "20"
       - run: npm ci
       - run: npm run lint
       - run: npm run test
@@ -1274,13 +1292,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Build Docker image
         run: docker build -t your-registry/nextjs-app:${{ github.sha }} .
-      
+
       - name: Push to registry
         run: docker push your-registry/nextjs-app:${{ github.sha }}
-      
+
       - name: Deploy to production
         run: |
           kubectl set image deployment/nextjs-app \
@@ -1295,6 +1313,7 @@ jobs:
 ### 1. Authentication & Authorization
 
 **API Key Management:**
+
 ```typescript
 // Rotate API keys regularly
 // Store in environment variables, never in code
@@ -1302,135 +1321,137 @@ jobs:
 
 // Validate all incoming requests
 export function validateAPIKey(req: Request): boolean {
-  const apiKey = req.headers.get('x-api-key');
+  const apiKey = req.headers.get("x-api-key");
   return apiKey === process.env.INTERNAL_API_KEY;
 }
 ```
 
 **Webhook Signature Verification:**
+
 ```typescript
 // Verify WAHA webhook signatures
-import crypto from 'crypto';
+import crypto from "crypto";
 
 export function verifyWebhookSignature(
   payload: string,
   signature: string,
-  secret: string
+  secret: string,
 ): boolean {
-  const hmac = crypto.createHmac('sha256', secret);
-  const digest = hmac.update(payload).digest('hex');
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(digest)
-  );
+  const hmac = crypto.createHmac("sha256", secret);
+  const digest = hmac.update(payload).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
 }
 ```
 
 **Dashboard Authentication:**
+
 ```typescript
 // Use NextAuth.js for admin dashboard
-import NextAuth from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 
 export const authOptions = {
   providers: [
     CredentialsProvider({
       credentials: {
         username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         // Verify against database
         const user = await verifyUser(credentials);
         return user || null;
-      }
-    })
+      },
+    }),
   ],
   session: {
-    strategy: 'jwt',
-    maxAge: 24 * 60 * 60 // 24 hours
-  }
+    strategy: "jwt",
+    maxAge: 24 * 60 * 60, // 24 hours
+  },
 };
 ```
 
 ### 2. Data Protection
 
 **Encryption at Rest:**
+
 ```typescript
 // Encrypt sensitive data before storing
-import crypto from 'crypto';
+import crypto from "crypto";
 
-const algorithm = 'aes-256-gcm';
-const key = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex');
+const algorithm = "aes-256-gcm";
+const key = Buffer.from(process.env.ENCRYPTION_KEY!, "hex");
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(algorithm, key, iv);
-  
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  
+
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
   const authTag = cipher.getAuthTag();
-  
-  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+
+  return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
 }
 
 export function decrypt(encryptedData: string): string {
-  const [ivHex, authTagHex, encrypted] = encryptedData.split(':');
-  
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
+  const [ivHex, authTagHex, encrypted] = encryptedData.split(":");
+
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
   const decipher = crypto.createDecipheriv(algorithm, key, iv);
-  
+
   decipher.setAuthTag(authTag);
-  
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  
+
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+
   return decrypted;
 }
 ```
 
 **PII Handling:**
+
 ```typescript
 // Mask sensitive data in logs
 export function maskPII(data: any): any {
   const masked = { ...data };
-  
-  const sensitiveFields = ['phone', 'email', 'ssn', 'password'];
-  
+
+  const sensitiveFields = ["phone", "email", "ssn", "password"];
+
   for (const field of sensitiveFields) {
     if (masked[field]) {
-      masked[field] = '***REDACTED***';
+      masked[field] = "***REDACTED***";
     }
   }
-  
+
   return masked;
 }
 
 // Use in logging
-logger.info('User data', maskPII(userData));
+logger.info("User data", maskPII(userData));
 ```
 
 ### 3. Input Validation
 
 **Sanitize User Input:**
+
 ```typescript
-import validator from 'validator';
-import DOMPurify from 'isomorphic-dompurify';
+import validator from "validator";
+import DOMPurify from "isomorphic-dompurify";
 
 export function sanitizeInput(input: string): string {
   // Remove HTML tags
   let clean = DOMPurify.sanitize(input, { ALLOWED_TAGS: [] });
-  
+
   // Trim whitespace
   clean = clean.trim();
-  
+
   // Limit length
   if (clean.length > 1000) {
     clean = clean.substring(0, 1000);
   }
-  
+
   return clean;
 }
 
@@ -1439,18 +1460,19 @@ export function validateEmail(email: string): boolean {
 }
 
 export function validatePhone(phone: string): boolean {
-  return validator.isMobilePhone(phone, 'any');
+  return validator.isMobilePhone(phone, "any");
 }
 ```
 
 **SQL Injection Prevention:**
+
 ```typescript
 // Use Prisma ORM with parameterized queries
 // Never concatenate user input into SQL
 
 // GOOD
 const user = await prisma.user.findUnique({
-  where: { email: userEmail }
+  where: { email: userEmail },
 });
 
 // BAD - Never do this
@@ -1461,26 +1483,26 @@ const user = await prisma.user.findUnique({
 
 ```typescript
 // middleware.ts
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 const ratelimit = new Ratelimit({
   redis: Redis.fromEnv(),
-  limiter: Ratelimit.slidingWindow(10, '1 m'), // 10 requests per minute
+  limiter: Ratelimit.slidingWindow(10, "1 m"), // 10 requests per minute
   analytics: true,
 });
 
 export async function middleware(request: Request) {
-  const ip = request.headers.get('x-forwarded-for') ?? 'unknown';
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
   const { success, limit, reset, remaining } = await ratelimit.limit(ip);
 
   if (!success) {
-    return new Response('Rate limit exceeded', {
+    return new Response("Rate limit exceeded", {
       status: 429,
       headers: {
-        'X-RateLimit-Limit': limit.toString(),
-        'X-RateLimit-Remaining': remaining.toString(),
-        'X-RateLimit-Reset': reset.toString(),
+        "X-RateLimit-Limit": limit.toString(),
+        "X-RateLimit-Remaining": remaining.toString(),
+        "X-RateLimit-Reset": reset.toString(),
       },
     });
   }
@@ -1505,17 +1527,17 @@ server {
 
     ssl_certificate /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;
-    
+
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
-    
+
     # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
-    
+
     location / {
         proxy_pass http://nextjs:3000;
         proxy_set_header Host $host;
@@ -1562,24 +1584,24 @@ module.exports = {
   async headers() {
     return [
       {
-        source: '/api/:path*',
+        source: "/api/:path*",
         headers: [
           {
-            key: 'Access-Control-Allow-Origin',
-            value: process.env.ALLOWED_ORIGINS || 'https://your-domain.com'
+            key: "Access-Control-Allow-Origin",
+            value: process.env.ALLOWED_ORIGINS || "https://your-domain.com",
           },
           {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET, POST, PUT, DELETE, OPTIONS'
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, PUT, DELETE, OPTIONS",
           },
           {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Authorization'
-          }
-        ]
-      }
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization",
+          },
+        ],
+      },
     ];
-  }
+  },
 };
 ```
 
@@ -1590,21 +1612,23 @@ module.exports = {
 ### Horizontal Scaling
 
 **Load Balancing:**
+
 - Use Nginx or cloud load balancers (AWS ALB, GCP Load Balancer)
 - Distribute traffic across multiple Next.js instances
 - Session affinity not required (stateless design)
 
 **Database Scaling:**
+
 ```typescript
 // Read replicas for analytics queries
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: isReadQuery 
-        ? process.env.DATABASE_READ_REPLICA_URL 
-        : process.env.DATABASE_URL
-    }
-  }
+      url: isReadQuery
+        ? process.env.DATABASE_READ_REPLICA_URL
+        : process.env.DATABASE_URL,
+    },
+  },
 });
 
 // Connection pooling
@@ -1616,6 +1640,7 @@ const pool = new Pool({
 ```
 
 **Caching Strategy:**
+
 ```typescript
 // Multi-layer caching
 // 1. In-memory cache (Node.js)
@@ -1632,21 +1657,21 @@ export async function getCachedData(key: string) {
   if (memoryCache.has(key)) {
     return memoryCache.get(key);
   }
-  
+
   // Check Redis
   const cached = await redisCache.get(key);
   if (cached) {
     memoryCache.set(key, cached);
     return cached;
   }
-  
+
   // Fetch from database
   const data = await fetchFromDB(key);
-  
+
   // Cache in both layers
   await redisCache.setex(key, 3600, data);
   memoryCache.set(key, data);
-  
+
   return data;
 }
 ```
@@ -1654,20 +1679,21 @@ export async function getCachedData(key: string) {
 ### Async Processing
 
 **Message Queue:**
+
 ```typescript
 // Use Bull for job queues
-import Queue from 'bull';
+import Queue from "bull";
 
-const messageQueue = new Queue('messages', process.env.REDIS_URL);
+const messageQueue = new Queue("messages", process.env.REDIS_URL);
 
 // Producer
 export async function queueMessage(message: Message) {
   await messageQueue.add(message, {
     attempts: 3,
     backoff: {
-      type: 'exponential',
-      delay: 2000
-    }
+      type: "exponential",
+      delay: 2000,
+    },
   });
 }
 
@@ -1681,27 +1707,29 @@ messageQueue.process(async (job) => {
 ### Database Optimization
 
 **Indexing:**
+
 ```sql
 -- Add indexes for frequently queried fields
-CREATE INDEX CONCURRENTLY idx_sessions_phone 
+CREATE INDEX CONCURRENTLY idx_sessions_phone
   ON whatsapp_sessions(phone_number);
 
-CREATE INDEX CONCURRENTLY idx_conversations_session_created 
+CREATE INDEX CONCURRENTLY idx_conversations_session_created
   ON conversations(session_id, created_at DESC);
 
-CREATE INDEX CONCURRENTLY idx_submissions_status_created 
+CREATE INDEX CONCURRENTLY idx_submissions_status_created
   ON form_submissions(submission_status, created_at DESC);
 ```
 
 **Query Optimization:**
+
 ```typescript
 // Use select to fetch only needed fields
 const users = await prisma.user.findMany({
   select: {
     id: true,
     name: true,
-    email: true
-  }
+    email: true,
+  },
 });
 
 // Use pagination
@@ -1710,7 +1738,7 @@ const pageSize = 20;
 const submissions = await prisma.formSubmission.findMany({
   skip: (page - 1) * pageSize,
   take: pageSize,
-  orderBy: { createdAt: 'desc' }
+  orderBy: { createdAt: "desc" },
 });
 ```
 
@@ -1721,6 +1749,7 @@ const submissions = await prisma.formSubmission.findMany({
 ### Application Monitoring
 
 **Health Checks:**
+
 ```typescript
 // app/api/health/route.ts
 export async function GET() {
@@ -1728,48 +1757,49 @@ export async function GET() {
     database: await checkDatabase(),
     redis: await checkRedis(),
     waha: await checkWAHA(),
-    llm: await checkLLM()
+    llm: await checkLLM(),
   };
 
-  const healthy = Object.values(checks).every(c => c.status === 'ok');
+  const healthy = Object.values(checks).every((c) => c.status === "ok");
 
   return Response.json(
-    { status: healthy ? 'healthy' : 'unhealthy', checks },
-    { status: healthy ? 200 : 503 }
+    { status: healthy ? "healthy" : "unhealthy", checks },
+    { status: healthy ? 200 : 503 },
   );
 }
 
 async function checkDatabase() {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return { status: 'ok' };
+    return { status: "ok" };
   } catch (error) {
-    return { status: 'error', message: error.message };
+    return { status: "error", message: error.message };
   }
 }
 ```
 
 **Metrics Collection:**
+
 ```typescript
 // Use Prometheus client
-import { Counter, Histogram, register } from 'prom-client';
+import { Counter, Histogram, register } from "prom-client";
 
 const messageCounter = new Counter({
-  name: 'messages_processed_total',
-  help: 'Total number of messages processed',
-  labelNames: ['status']
+  name: "messages_processed_total",
+  help: "Total number of messages processed",
+  labelNames: ["status"],
 });
 
 const llmLatency = new Histogram({
-  name: 'llm_request_duration_seconds',
-  help: 'LLM request duration',
-  buckets: [0.1, 0.5, 1, 2, 5]
+  name: "llm_request_duration_seconds",
+  help: "LLM request duration",
+  buckets: [0.1, 0.5, 1, 2, 5],
 });
 
 // Expose metrics endpoint
 export async function GET() {
   return new Response(await register.metrics(), {
-    headers: { 'Content-Type': register.contentType }
+    headers: { "Content-Type": register.contentType },
   });
 }
 ```
@@ -1777,30 +1807,35 @@ export async function GET() {
 ### Logging
 
 **Structured Logging:**
+
 ```typescript
 // lib/logger.ts
-import pino from 'pino';
+import pino from "pino";
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL || "info",
   formatters: {
     level: (label) => {
       return { level: label };
-    }
+    },
   },
   timestamp: pino.stdTimeFunctions.isoTime,
   redact: {
-    paths: ['phone', 'email', '*.phone', '*.email'],
-    remove: true
-  }
+    paths: ["phone", "email", "*.phone", "*.email"],
+    remove: true,
+  },
 });
 
 // Usage
-logger.info({ userId: '123', action: 'form_submit' }, 'User submitted form');
-logger.error({ error: err, context: { userId: '123' } }, 'Form submission failed');
+logger.info({ userId: "123", action: "form_submit" }, "User submitted form");
+logger.error(
+  { error: err, context: { userId: "123" } },
+  "Form submission failed",
+);
 ```
 
 **Log Aggregation:**
+
 ```yaml
 # docker-compose.yml - Add log shipping
 services:
@@ -1811,7 +1846,7 @@ services:
         max-size: "10m"
         max-file: "3"
         labels: "service=nextjs"
-  
+
   # Optional: Add Loki for log aggregation
   loki:
     image: grafana/loki:latest
@@ -1822,9 +1857,10 @@ services:
 ### Error Tracking
 
 **Sentry Integration:**
+
 ```typescript
 // lib/sentry.ts
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -1837,7 +1873,7 @@ Sentry.init({
       delete event.request.headers?.authorization;
     }
     return event;
-  }
+  },
 });
 
 // Usage
@@ -1845,8 +1881,8 @@ try {
   await processMessage(message);
 } catch (error) {
   Sentry.captureException(error, {
-    tags: { component: 'message-processor' },
-    extra: { messageId: message.id }
+    tags: { component: "message-processor" },
+    extra: { messageId: message.id },
   });
   throw error;
 }
@@ -1863,31 +1899,31 @@ try {
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
-  baseDelay: number = 1000
+  baseDelay: number = 1000,
 ): Promise<T> {
   let lastError: Error;
-  
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      
+
       if (i < maxRetries - 1) {
         const delay = baseDelay * Math.pow(2, i);
         await sleep(delay);
       }
     }
   }
-  
+
   throw lastError!;
 }
 
 // Usage
 const response = await retryWithBackoff(
-  () => fetch('https://api.biznetgio.ai/v1/chat/completions', options),
+  () => fetch("https://api.biznetgio.ai/v1/chat/completions", options),
   3,
-  1000
+  1000,
 );
 ```
 
@@ -1898,22 +1934,22 @@ const response = await retryWithBackoff(
 class CircuitBreaker {
   private failures = 0;
   private lastFailureTime = 0;
-  private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
-  
+  private state: "CLOSED" | "OPEN" | "HALF_OPEN" = "CLOSED";
+
   constructor(
     private threshold: number = 5,
-    private timeout: number = 60000
+    private timeout: number = 60000,
   ) {}
-  
+
   async execute<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.state === 'OPEN') {
+    if (this.state === "OPEN") {
       if (Date.now() - this.lastFailureTime > this.timeout) {
-        this.state = 'HALF_OPEN';
+        this.state = "HALF_OPEN";
       } else {
-        throw new Error('Circuit breaker is OPEN');
+        throw new Error("Circuit breaker is OPEN");
       }
     }
-    
+
     try {
       const result = await fn();
       this.onSuccess();
@@ -1923,18 +1959,18 @@ class CircuitBreaker {
       throw error;
     }
   }
-  
+
   private onSuccess() {
     this.failures = 0;
-    this.state = 'CLOSED';
+    this.state = "CLOSED";
   }
-  
+
   private onFailure() {
     this.failures++;
     this.lastFailureTime = Date.now();
-    
+
     if (this.failures >= this.threshold) {
-      this.state = 'OPEN';
+      this.state = "OPEN";
     }
   }
 }
@@ -1943,7 +1979,7 @@ class CircuitBreaker {
 const llmCircuitBreaker = new CircuitBreaker(5, 60000);
 
 const response = await llmCircuitBreaker.execute(() =>
-  fetch('https://api.biznetgio.ai/v1/chat/completions', options)
+  fetch("https://api.biznetgio.ai/v1/chat/completions", options),
 );
 ```
 
@@ -1955,7 +1991,7 @@ export async function processMessageWithFallback(message: string) {
   try {
     return await processWithLLM(message);
   } catch (error) {
-    logger.warn('LLM unavailable, using rule-based fallback');
+    logger.warn("LLM unavailable, using rule-based fallback");
     return processWithRules(message);
   }
 }
@@ -1964,11 +2000,11 @@ function processWithRules(message: string): ExtractedData {
   // Simple regex-based extraction
   const emailRegex = /[\w.-]+@[\w.-]+\.\w+/;
   const phoneRegex = /\+?\d{10,}/;
-  
+
   return {
     email: message.match(emailRegex)?.[0],
     phone: message.match(phoneRegex)?.[0],
-    confidence: 0.5
+    confidence: 0.5,
   };
 }
 ```
@@ -2059,37 +2095,37 @@ kubectl describe pod name  # Pod details
 
 ```typescript
 // __tests__/message-processor.test.ts
-import { processMessage } from '@/lib/message-processor';
+import { processMessage } from "@/lib/message-processor";
 
-describe('Message Processor', () => {
-  it('should extract email from message', async () => {
-    const message = 'My email is john@example.com';
+describe("Message Processor", () => {
+  it("should extract email from message", async () => {
+    const message = "My email is Clarabit@example.com";
     const result = await processMessage(message);
-    
-    expect(result.extracted_fields.email).toBe('john@example.com');
+
+    expect(result.extracted_fields.email).toBe("Clarabit@example.com");
   });
-  
-  it('should handle missing fields', async () => {
-    const message = 'Hello';
+
+  it("should handle missing fields", async () => {
+    const message = "Hello";
     const result = await processMessage(message);
-    
-    expect(result.missing_fields).toContain('email');
+
+    expect(result.missing_fields).toContain("email");
   });
 });
 
 // __tests__/api/webhook.test.ts
-import { POST } from '@/app/api/webhook/route';
+import { POST } from "@/app/api/webhook/route";
 
-describe('Webhook API', () => {
-  it('should accept valid webhook', async () => {
-    const request = new Request('http://localhost/api/webhook', {
-      method: 'POST',
+describe("Webhook API", () => {
+  it("should accept valid webhook", async () => {
+    const request = new Request("http://localhost/api/webhook", {
+      method: "POST",
       body: JSON.stringify({
-        event: 'message',
-        payload: { from: '123@c.us', body: 'test' }
-      })
+        event: "message",
+        payload: { from: "123@c.us", body: "test" },
+      }),
     });
-    
+
     const response = await POST(request);
     expect(response.status).toBe(200);
   });

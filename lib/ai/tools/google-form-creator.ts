@@ -38,9 +38,11 @@ export class GoogleFormCreatorTool implements AITool {
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       
       if (!jsonMatch) {
+        const errorPrompt = `Inform the user that you couldn't understand the form structure they want in the same language as their query: "${query}". Be helpful and provide an example like "Buatkan form pendaftaran dengan pertanyaan nama dan email". No bold formatting.`;
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: 'Maaf, saya kesulitan memahami struktur form yang Anda inginkan. Bisa tolong dijelaskan lebih detail?\n\nContoh: "Buatkan form pendaftaran dengan pertanyaan nama, email, dan pilih sesi (pagi/siang/malam)"'
+          reply: errorReply.replace(/\*/g, '').trim()
         };
       }
 
@@ -48,9 +50,11 @@ export class GoogleFormCreatorTool implements AITool {
       
       // 3. Validate data structure
       if (!data.title || !data.questions || !Array.isArray(data.questions)) {
+        const errorPrompt = `Inform the user that the form format is invalid and they should mention a title and questions in the same language as their query: "${query}". No bold formatting.`;
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: 'Format form tidak valid. Mohon sebutkan judul form dan pertanyaan-pertanyaannya.'
+          reply: errorReply.replace(/\*/g, '').trim()
         };
       }
 
@@ -181,11 +185,28 @@ export class GoogleFormCreatorTool implements AITool {
           // For now, we return it in `newState` and assume Orchestrator handles the merge.
       }
 
-      const spreadsheetTxt = spreadsheetUrl ? `\n\n📊 *Link Spreadsheet:*\n${spreadsheetUrl}` : '';
+      const finalReply = await this.biznet.generateSpecificResponse(
+        Prompts.formCreationSuccess({
+          title: result.title || 'Untitled Form',
+          questionCount: questionCount,
+          shortUrl: shortUrl || '',
+          editUrl: editUrl || '',
+          spreadsheetUrl: spreadsheetUrl || undefined,
+          sharedWith: sharedWith,
+          query: query
+        }),
+        query
+      );
+
+      // Post-process: Convert escaped \n and strip markdown-style bold (keeping single * for WhatsApp bold)
+      const formattedReply = finalReply
+        .trim()
+        .replace(/\\n/g, '\n')
+        .replace(/\*\*/g, ''); // Strip double asterisks (markdown) but keep single for WhatsApp
 
       return {
         success: true,
-        reply: `✅ *Form Berhasil Dibuat!*\n\n📄 *Nama Form:* ${result.title}\n\n📊 *Total Pertanyaan:* ${questionCount} pertanyaan${sharedTxt}\n\n🔗 *Link Form:*\n${shortUrl}\n\n✏️ *Edit Form:*\n${editUrl}${spreadsheetTxt}\n\nAda lagi yang bisa saya bantu?`,
+        reply: formattedReply,
         newState: { 
           lastFormId: result.formId,
           lastFormUrl: shortUrl,
@@ -198,18 +219,25 @@ export class GoogleFormCreatorTool implements AITool {
     } catch (error: any) {
       console.error('[GoogleFormTool] Execution Error:', error);
       
-      // Provide helpful error messages
-      if (error.message?.includes('invalid_grant')) {
+      const errorMsg = error.message || '';
+      const fallbackMsg = 'Sorry, a technical error occurred. Please try again later.';
+      
+      const errorPrompt = `Inform the user that a technical error occurred while creating their form in the same language as their query: "${query}". 
+      Error details (for context only, don't show to user unless necessary): ${errorMsg}. 
+      Keep it simple and helpful. No bold formatting.`;
+      
+      try {
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: 'Mohon maaf, terjadi masalah dengan authorization. Silakan hubungi administrator untuk refresh OAuth token.'
+          reply: `❌ ${errorReply.replace(/\*/g, '').trim()}`
+        };
+      } catch (aiError) {
+        return {
+          success: false,
+          reply: `❌ ${fallbackMsg}`
         };
       }
-      
-      return {
-        success: false,
-        reply: 'Mohon maaf, terjadi kesalahan teknis saat mencoba membuat form Anda. Silakan coba lagi sebentar lagi atau hubungi administrator jika masalah berlanjut.'
-      };
     }
   }
 

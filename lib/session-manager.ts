@@ -8,7 +8,11 @@ export class SessionManager {
       // 1. Try Cache
       const cached = await redis.get(`session:${phoneNumber}`);
       if (cached) {
-          // Refresh TTL on read? Maybe.
+          if (cached.length > 2000000) { // 2MB safety
+              console.error(`[SessionManager] CRITICAL: Redis session for ${phoneNumber} is too large (${cached.length}). Clearing cache.`);
+              await redis.del(`session:${phoneNumber}`);
+              return null;
+          }
           return JSON.parse(cached);
       }
 
@@ -47,15 +51,25 @@ export class SessionManager {
     const currentSession = await this.getSession(phoneNumber);
     const existingState = (currentSession?.sessionState || {}) as any;
     
-    // Merge new state with existing state (deep merge for arrays like createdForms)
+    // Merge new state with existing state
     const mergedState = { 
       ...existingState, 
-      ...newState,
-      // Special handling for array merging (like createdForms)
-      ...(newState.createdForms && existingState.createdForms ? {
-        createdForms: [...existingState.createdForms, ...newState.createdForms]
-      } : {})
+      ...newState
     };
+    
+    const mergedStateStr = JSON.stringify(mergedState);
+    const MAX_STATE_SIZE = 1024 * 1024; // 1MB limit
+    
+    if (mergedStateStr.length > MAX_STATE_SIZE) {
+        console.error(`[SessionManager] CRITICAL: Session state for ${phoneNumber} exceeded ${MAX_STATE_SIZE} chars (${mergedStateStr.length}). Resetting state to prevent crash.`);
+        // Emergency reset to prevent OOM/RangeError
+        await db.whatsappSession.update({
+            where: { phoneNumber },
+            data: { sessionState: {}, updatedAt: new Date() }
+        });
+        await redis.del(`session:${phoneNumber}`);
+        return null;
+    }
     
     // console.log(`[SessionManager] Merging state for ${phoneNumber}`);
     
@@ -99,6 +113,12 @@ export class SessionManager {
   }
 
   private async cacheSession(phoneNumber: string, session: WhatsappSession) {
-    await redis.setex(`session:${phoneNumber}`, 3600, JSON.stringify(session));
+    const sessionStr = JSON.stringify(session);
+    const MAX_CACHE_SIZE = 2 * 1024 * 1024; // 2MB
+    if (sessionStr.length > MAX_CACHE_SIZE) {
+        console.error(`[SessionManager] REJECTED: Session cache for ${phoneNumber} is too large (${sessionStr.length}). Not caching.`);
+        return;
+    }
+    await redis.setex(`session:${phoneNumber}`, 3600, sessionStr);
   }
 }

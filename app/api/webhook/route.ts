@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // Initialize Services
 const waha = new WAHAClient();
 const sessionManager = new SessionManager();
-const orchestrator = new AIOrchestrator(waha);
+const orchestrator = new AIOrchestrator();
 
 // Lazy-loaded MediaParser to avoid server-side initialization issues
 let mediaParser: any = null;
@@ -70,6 +70,15 @@ export async function POST(req: Request) {
     
     let message = payload.body || ''; 
     const messageId = payload.id;
+
+    // --- STRIP MENTIONS IN GROUPS (NEW) ---
+    // In group chats, messages directed at the bot usually start with @bot_number
+    if (isGroupChat && message.startsWith('@')) {
+        // Regex to remove the @number part at the start (supports common WA formats)
+        // Matches @ followed by digits, then potentially a space
+        message = message.replace(/^@\d+\s*/, '').trim();
+        console.log(`[Webhook] Stripped mention from group message. New body: "${message}"`);
+    }
 
     // --- MEDIA HANDLING (NEW) ---
     // WAHA NOWEB may have different media detection
@@ -224,6 +233,22 @@ export async function POST(req: Request) {
             }
         }
     }
+
+    // --- REPLY TO TEXT HANDLING (NEW) ---
+    // Extract the text content of the message being replied to (non-media case)
+    let replyContext = '';
+    if (quotedMsg && !hasMedia) {
+        const quotedBody = quotedMsg.body || 
+                           quotedMsg?.text ||
+                           (quotedMsg._data && quotedMsg._data.body) ||
+                           (quotedMsg._data && quotedMsg._data.text) ||
+                           '';
+        
+        if (quotedBody && quotedBody.trim().length > 0) {
+            replyContext = quotedBody.trim();
+            console.log(`[Webhook] Reply context extracted: "${replyContext.substring(0, 50)}..."`);
+        }
+    }
     
     console.log(`[Webhook] INCOMING -> from: ${chatId}, body: "${message}"`); // Log immediately for debug
     
@@ -232,17 +257,27 @@ export async function POST(req: Request) {
         return NextResponse.json({ status: 'error', reason: 'missing_chat_id' }, { status: 400 });
     }
 
+    // Session Management (Database + Cache) - MOVED UP to support dynamic aliases
+    console.log(`[Webhook] Fetching session for ${chatId}...`);
+    let session = await sessionManager.getSession(chatId);
+    
+    if (!session) {
+        console.log(`[Webhook] Session NOT FOUND. Creating...`);
+        session = await sessionManager.createSession(chatId);
+        console.log(`[Webhook] New session created: ${session.id}`);
+    } else {
+        console.log(`[Webhook] Session found: ${session.id}`);
+    }
+
     // --- GROUP & MENTION LOGIC ---
     if (chatId.includes('@g.us')) {
         const envAllowed = process.env.ALLOWED_GROUPS || '';
-        // Filter out empty strings to avoid [""] when env is empty
         const allowedGroups = envAllowed.split(',').map(g => g.trim()).filter(g => g.length > 0);
         const botNumber = process.env.BOT_PHONE_NUMBER;
 
         console.log(`[Webhook] Group Check: ID=${chatId}. Allowed=${JSON.stringify(allowedGroups)}. BotNum=${botNumber}`);
 
         // 1. Check if group is allowed (Whitelist)
-        // Only enforce if allowedGroups has items
         if (allowedGroups.length > 0 && !allowedGroups.includes(chatId)) {
             console.log(`[Webhook] Ignored group ${chatId} (not in allowed list)`);
             return NextResponse.json({ status: 'ignored', reason: 'group_not_allowed' });
@@ -258,7 +293,19 @@ export async function POST(req: Request) {
 
         // Fallback: Check if message body contains @BotNumber OR @Alias
         if (!isMentioned) {
-             const aliases = (process.env.BOT_MENTION_NAMES || '').split(',').map(n => n.trim()).filter(n => n.length > 0);
+             // Combine static env aliases with dynamic session alias
+             const envAliases = (process.env.BOT_MENTION_NAMES || '').split(',').map(n => n.trim()).filter(n => n.length > 0);
+             
+             // Extract dynamic alias from session state
+             const sessionData = session.sessionState as any;
+             const dynamicAlias = sessionData?.metadata?.botName; 
+             
+             let aliases = [...envAliases];
+             if (dynamicAlias) {
+                 aliases.push(dynamicAlias); // Add "asis", "Clara", etc.
+                 console.log(`[Webhook] Added dynamic alias from session: ${dynamicAlias}`);
+             }
+
              const lowerMsg = message.toLowerCase();
              
              // Check @BotNumber
@@ -289,23 +336,6 @@ export async function POST(req: Request) {
         }
 
         console.log(`[Webhook] Group Message Accepted: ID=${chatId}, Mentioned=true`);
-    }
-    
-    // Ensure message is a string
-    // const message = payload.body || ''; // Moved up
-    
-    // console.log(`[Webhook] INCOMING -> from: ${chatId}, body: ${message}`); // Moved to top
-
-    // Session Management (Database + Cache)
-    console.log(`[Webhook] Fetching session for ${chatId}...`);
-    let session = await sessionManager.getSession(chatId);
-    
-    if (!session) {
-        console.log(`[Webhook] Session NOT FOUND. Creating...`);
-        session = await sessionManager.createSession(chatId);
-        console.log(`[Webhook] New session created: ${session.id}`);
-    } else {
-        console.log(`[Webhook] Session found: ${session.id}`);
     }
 
     // Save user message
@@ -345,7 +375,8 @@ export async function POST(req: Request) {
         phoneNumber: chatId,
         sessionState: session.sessionState,
         messageId: messageId,
-        senderName: senderName
+        senderName: senderName,
+        replyContext: replyContext // Pass the quoted message text
     });
 
     const replyText = response.reply;

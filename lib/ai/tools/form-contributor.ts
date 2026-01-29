@@ -31,9 +31,11 @@ export class FormContributorTool implements AITool {
       
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
+        const errorPrompt = `Inform the user that you couldn't find a valid email in their request: "${query}". Suggest they provide an email, e.g., "tambahkan email joni@gmail.com". Use the same language as the query. No bold formatting.`;
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: 'Maaf, saya tidak menemukan alamat email yang valid di pesan Anda. Silakan sebutkan alamat emailnya.\n\nContoh: "tambahkan email joni@gmail.com ke form ini"'
+          reply: `❌ ${errorReply.replace(/\*/g, '').trim()}`
         };
       }
 
@@ -42,9 +44,11 @@ export class FormContributorTool implements AITool {
       const formName = data.formName;
 
       if (!email || !email.includes('@')) {
+        const errorPrompt = `Inform the user that the email they provided is invalid in the same language as their query: "${query}". No bold formatting.`;
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: 'Maaf, alamat email yang Anda berikan tidak valid. Mohon periksa kembali emailnya.'
+          reply: `❌ ${errorReply.replace(/\*/g, '').trim()}`
         };
       }
 
@@ -69,9 +73,11 @@ export class FormContributorTool implements AITool {
       }
 
       if (!formId) {
+        const errorPrompt = `Inform the user that you don't know which form to share in the same language as their query: "${query}". Suggest they mention the form name or create one first. No bold formatting.`;
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
-          reply: 'Maaf, saya tidak tahu form mana yang ingin Anda bagikan. Silakan buat form terlebih dahulu atau sebutkan judul form-nya.'
+          reply: `❌ ${errorReply.replace(/\*/g, '').trim()}`
         };
       }
 
@@ -79,17 +85,45 @@ export class FormContributorTool implements AITool {
       console.log(`[FormContributorTool] Adding ${email} to form: ${targetFormTitle} (${formId})`);
       await this.googleForms.addContributor(formId, email);
 
+      const finalReply = await this.biznet.generateSpecificResponse(
+        Prompts.formContributorSuccess({
+          email: email,
+          formTitle: targetFormTitle,
+          query: query
+        }),
+        query
+      );
+
+      // Post-process: Convert escaped \n and strip bold
+      const formattedReply = finalReply
+        .trim()
+        .replace(/\\n/g, '\n')
+        .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove **bold**
+        .replace(/\*([^*]+)\*/g, '$1');     // Remove *italic*
+
       return {
         success: true,
-        reply: `✅ Akun *${email}* telah berhasil ditambahkan sebagai editor (kontributor) pada Google Form *"${targetFormTitle}"*.\n\nMereka akan menerima email notifikasi dari Google.`
+        reply: formattedReply
       };
 
     } catch (error: any) {
       console.error('[FormContributorTool] Execution Error:', error);
-      return {
-        success: false,
-        reply: `Maaf, terjadi kesalahan saat mencoba menambahkan kontributor: ${error.message}`
-      };
+      
+      const errorPrompt = `Inform the user that an error occurred while adding a contributor in the same language as their query: "${query}". 
+      Error details (context only): ${error.message}. No bold formatting.`;
+      
+      try {
+        const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
+        return {
+          success: false,
+          reply: `❌ ${errorReply.replace(/\*/g, '').trim()}`
+        };
+      } catch (aiError) {
+        return {
+          success: false,
+          reply: '❌ Sorry, an error occurred while adding the contributor.'
+        };
+      }
     }
   }
 }

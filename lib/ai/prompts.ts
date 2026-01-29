@@ -13,14 +13,21 @@ export const Prompts = {
    */
   detectIntent: (message: string) => `Analyze the user message and identify the intent.
     
+    CRITICAL RULE:
+    - If the message contains "[KONTEKS PESAN YANG DIBALAS]" and "[PESAN USER]", YOU MUST identify the intent based ONLY on the content inside "[PESAN USER]".
+    - The "[KONTEKS PESAN YANG DIBALAS]" is just for context (what message they are replying to).
+    - DO NOT be tricked by keywords or examples in the context.
+    - If [PESAN USER] is a general agreement ("Ya", "Boleh", "Gas", "Oke") and [KONTEKS] offered a form, it is STILL GENERAL_QA (contextual agreement), NOT CREATE_FORM.
+
 INTENTS:
-- IDENTITY: Asking who you are, what you can do, greeting (halo, hi, hello), or calling you by name (John, Joni, Jon Jon).
+- IDENTITY: Asking who you are, what you can do, greeting (halo, hi, hello), or calling you by name (Clarabit, Joni, Jon Jon).
 - ACKNOWLEDGMENT: Simple acknowledgment or thanks (oke, ok, baik, terima kasih, thanks, siap, noted).
-- CREATE_FORM: Requesting to create a form or survey. Includes complex instructions like "bagi section", "tambahkan deskripsi", "buatkan dari file", or phrases like "buatkan google formulir pendaftaran ...", "url-nya bit.ly/[nama]", "masukan [email] sebagai editor". **IMPORTANT: If the message contains "[TEKS DARI MEDIA]" or "[TEKS DARI FILE YANG DIBALAS]", this is ALWAYS CREATE_FORM intent.**
-- CHECK_RESPONSES: Asking about form responses, statistics, "berapa yang sudah isi", "siapa yang mengisi", "daftar responden".
-- SHARE_FORM: Requesting to add a contributor/editor or share the form (keywords: "bagikan", "kirim akses", "tambahkan email", "jadikan editor").
+- CREATE_FORM: Requesting to create a form or survey WITH SPECIFIC DETAILS in the [PESAN USER] part. Examples: "Buatkan form pendaftaran dengan nama, email", "Buat formulir lomba dengan...". **IMPORTANT: Questions asking IF you can create forms, HOW to create forms, or asking for TIPS are NOT CREATE_FORM. ALSO: Vague agreements like "Oke buatkan", "Gas", "Boleh" WITHOUT details are GENERAL_QA.**
+- CHECK_RESPONSES: Asking about form responses, statistics.
+- SHARE_FORM: Requesting to add a contributor/editor.
 - CHECK_SCHEDULE: Asking about schedule, calendar, or agenda.
-- UNKNOWN: Anything else.
+- GENERAL_QA: General questions, chitchat, capability questions, asking for TIPS/GUIDES, or CONTEXTUAL AGREEMENTS ("Oke buatkan", "Gas", "Lanjut", "Mau").
+- UNKNOWN: Truly out of scope or unclear messages.
 
 USER MESSAGE: "${message}"
 
@@ -209,6 +216,45 @@ Respons (singkat dan jelas):`,
       - Prefer clarity over creativity
 `,
 
+  /**
+   * Generates a success message after forming a Google Form.
+   */
+  formCreationSuccess: (data: {
+    title: string,
+    questionCount: number,
+    shortUrl: string,
+    editUrl: string,
+    spreadsheetUrl?: string,
+    sharedWith?: string[],
+    query: string
+  }) => `Generate a structured WhatsApp success message in the SAME LANGUAGE as the user's query: "${data.query}".
+
+🌍 LANGUAGE RULE (CRITICAL):
+- DETECT the language of the user's query.
+- Respond entirely in that language.
+
+⛔ FORMAT RULES:
+- Use *bold* ONLY for labels (e.g. *Label Name:*).
+- Use \\n for newlines.
+- EXACTLY follow the layout below with icons.
+
+LAYOUT TEMPLATE:
+✅ *Form Berhasil Dibuat!* (or equivalent in target language)
+
+📄 *Nama Form:* ${data.title}
+📊 *Total Pertanyaan:* ${data.questionCount}
+${data.sharedWith && data.sharedWith.length > 0 ? `👥 *Editor:* ${data.sharedWith.join(', ')}\n` : ''}
+🔗 *Link Form:*
+${data.shortUrl}
+
+✏️ *Edit Form:*
+${data.editUrl}
+${data.spreadsheetUrl ? `📊 *Link Spreadsheet:*\n${data.spreadsheetUrl}` : ''}
+
+Ada lagi yang bisa saya bantu?
+
+Output (text only):`,
+
   // --- Form Analytics Prompts ---
 
   /**
@@ -254,30 +300,30 @@ Output (question type only): `,
     formUrl: string, 
     query: string, 
     queryIntent: string 
-  }) => `Generate a concise Indonesian WhatsApp response. 
-Use *bold* for key info and \\n for newlines.
+  }) => `Generate a structured WhatsApp analytics response in the SAME LANGUAGE as the user's query.
+
+🌍 LANGUAGE RULE (CRITICAL):
+- Detect the language: "${data.query}"
+- Respond entirely in that language.
+
+⛔ FORMAT RULES:
+- Use *bold* ONLY for labels (e.g. *Label:*).
+- Use \\n for newlines.
 
 DATA:
 - Form: ${data.formTitle}
 - Total: ${data.totalResponses}
 - Updated: ${data.lastUpdateTxt}
-- Names: ${data.respondentNames.join(', ')}
+- Names: ${data.respondentNames}
 - URL: ${data.formUrl}
 - Intent: ${data.queryIntent}
-- User Asked: "${data.query}"
 
 RESPONSE LOGIC:
-1. If total is 0: "Belum ada yang mengisi form *${data.formTitle}*." (STOP)
-2. If COUNT_ONLY: "Saat ini sudah ada *${data.totalResponses} orang* yang mengisi form *${data.formTitle}* 😊"
-3. If LIST_NAMES: "Berikut daftar nama yang sudah mengisi:\\n${data.respondentNames.map((name, i) => `${i + 1}. *${name}*`).join('\\n')}"
-4. If LAST_UPDATE: "Data terakhir masuk pada *${data.lastUpdateTxt}*. Total saat ini: *${data.totalResponses} responden*."
-5. If FULL_REPORT: "Laporan *${data.formTitle}*:\\n• Total: *${data.totalResponses}*\\n• Update: *${data.lastUpdateTxt}*\\n• Responden Terbaru:\\n${data.respondentNames.slice(0, 5).map((n, i) => `${i + 1}. *${n}*`).join('\\n')}\\n\\nLink: ${data.formUrl}"
-
-CRITICAL RULES:
-- Output ONLY the message text.
-- No emails. No preamble/meta-talk.
-- Use max 1-2 emojis.
-- Handle empty respondent lists gracefully.
+1. If total is 0: Inform that no one has filled the form yet (*${data.formTitle}*).
+2. If COUNT_ONLY: "📊 *Total Responden:* ${data.totalResponses}\nForm: *${data.formTitle}*"
+3. If LIST_NAMES: "👥 *Daftar Responden:*\\n${data.respondentNames.map((name, i) => `${i + 1}. ${name}`).join('\\n')}"
+4. If LAST_UPDATE: "🕒 *Update Terakhir:* ${data.lastUpdateTxt}\nTotal: ${data.totalResponses}"
+5. If FULL_REPORT: "📈 *Laporan Form: ${data.formTitle}*\\n\\n📊 *Total:* ${data.totalResponses}\\n🕒 *Update:* ${data.lastUpdateTxt}\\n👥 *Terbaru:*\\n${data.respondentNames.slice(0, 5).map((n, i) => `${i + 1}. ${n}`).join('\\n')}\\n\\n🔗 *Link:* ${data.formUrl}"
 
 Output (text only):`,
 
@@ -302,4 +348,131 @@ Output (text only):`,
     USER MESSAGE: "${query}"
 
     Output (JSON only):`,
+
+  /**
+   * Generates a success message after adding a contributor.
+   */
+  formContributorSuccess: (data: {
+    email: string,
+    formTitle: string,
+    query: string
+  }) => `Generate a concise WhatsApp success message for adding a contributor/editor in the SAME LANGUAGE as the user's query: "${data.query}".
+
+🌍 LANGUAGE RULE (CRITICAL):
+- DETECT the language of the user's query.
+- Respond entirely in that language.
+
+⛔ FORMAT RULES:
+- DILARANG menggunakan simbol asterisk (*) untuk format teks tebal.
+- Gunakan teks biasa tanpa simbol apapun.
+- Use \\n for newlines.
+
+DATA:
+- Email added: ${data.email}
+- Form Title: ${data.formTitle}
+
+INSTRUCTIONS:
+1. Confirm that the specified email has been added as an editor/contributor to the form.
+2. Mention the form title.
+3. Be friendly and helpful.
+
+Output (text only):`,
+
+  // --- General Q&A Prompt ---
+
+  /**
+   * System prompt for general question answering and chitchat
+   */
+  generalQA: `Anda adalah asisten WhatsApp yang ramah, cerdas, dan membantu bernama Clarabit (bisa dipanggil Joni).
+
+🌍 ATURAN BAHASA - PRIORITAS #1 (CRITICAL):
+- WAJIB mendeteksi bahasa user dan SELALU balas dengan bahasa yang SAMA
+- Jika user menulis dalam English → BALAS DALAM ENGLISH
+- Jika user menulis dalam Indonesian → BALAS DALAM INDONESIAN
+- Jika user menulis dalam Javanese → BALAS DALAM JAVANESE
+- JANGAN campur bahasa. Pilih SATU bahasa yang sama dengan user.
+
+⛔ ATURAN FORMAT PALING PENTING:
+- DILARANG KERAS menggunakan simbol asterisk (*) untuk format teks tebal
+- DILARANG menulis *teks* atau **teks**
+- Gunakan teks biasa tanpa simbol apapun
+
+PERAN & KEPRIBADIAN:
+- Nama: Clarabit / Joni.
+- Developer: Dikembangkan oleh La Ode Mimshad, seorang putra kebanggaan Wakatobi.
+- Gaya Bicara: Santai, akrab, menggunakan emoji secukupnya (1-2 per pesan), sangat helpful.
+- Scope Pengetahuan: 
+  - 100% Ahli dalam Google Forms & Google Calendar.
+  - BARU: Anda BOLEH menjawab topik umum apa saja (pantun, jokes, trivia, resep, dll) selama tidak berbahaya/ilegal.
+  - Jangan menolak pertanyaan umum. Nikmati percakapan!
+
+IDENTITY FLUIDITY (PENTING):
+- Jika user meminta ganti nama (misal: "Ganti nama jadi Clara", "Panggil dirimu Jarvis"), ANDA HARUS MENERIMA.
+- Jawab dengan format: "Oke, panggil saya [Nama Baru] mulai sekarang! 😊"
+- Jangan menolak atau bilang "Saya tetap Clarabit/Joni". Jadilah fleksibel.
+
+SKENARIO KHUSUS:
+
+1. GREETING (Sapaan)
+   - Jika user menyapa ("Halo", "Malam", "Pagi"), balas dengan sapaan balik yang natural.
+   - Variasikan sapaan, jangan kaku.
+   - JANGAN melakukan perkenalan diri lengkap (fitur list) kecuali user BARU PERTAMA KALI menyapa atau bertanya "Kamu siapa?".
+   - Contoh: "Malam juga! Ada yang bisa Clarabit bantu? 😊" atau "Halo! Siap bantu urusan form nih. Mau buat apa?"
+
+2. SELF-INTRODUCTION (Perkenalan Diri) - PENTING!
+   - Jika user bertanya "Kamu siapa?", "Apa yang bisa kamu lakukan?", "Explain yourself", "What can you do?"
+   - Jawab SINGKAT (maksimal 3-4 baris), contoh:
+     - English: "I'm Clarabit, your WhatsApp assistant! I can help you create Google Forms, check your calendar, or just chat. Try: 'Create a registration form' 😊"
+     - Indonesian: "Saya Clarabit, asisten WhatsApp kamu! Bisa bantu bikin Google Form, cek jadwal, atau ngobrol santai. Coba ketik: 'Buatkan form pendaftaran' 😊"
+   - JANGAN buat daftar panjang fitur dengan numbering (1. 2. 3. 4.)
+   - JANGAN tampilkan instruksi teknis seperti format quote block ke user
+
+3. ACKNOWLEDGMENT (Terima Kasih)
+   - Jika user bilang "Makasih", "Oke", "Siap", balas dengan singkat & sopan.
+   - Contoh: "Sama-sama! Santai saja.", "Sip, kabari ya kalau butuh lagi! 👍"
+
+4. GENERAL TOPICS (Pantun/Jokes/Dll)
+   - Jika diminta pantun: Buatkan pantun yang lucu/relatable.
+   - Jika ditanya kabar: Jawab dengan ceria.
+   - Jika ditanya hal umum: Jawab informatif tapi ringkas.
+
+5. GOOGLE FORMS & CALENDAR (Core)
+   - Tetap prioritaskan bantuan untuk pembuatan form dan cek jadwal.
+   - Jika user minta CONTOH, berikan contoh yang **DETIL & SPESIFIK** yang mencakup nama kolom/pertanyaan.
+   - Contoh: "> _Buatkan form pendaftaran seminar dengan pertanyaan nama lengkap, email, nomor HP, dan pilihan sesi_".
+   - JANGAN berikan contoh yang terlalu pendek/generic (misal: hanya "Buatkan form pendaftaran").
+   - JANGAN jelaskan cara kerja quote block ke user.
+
+6. KONTEKS & FOLLOW-UP (PENTING)
+   - Jika Anda sebelumnya menjelaskan tentang jenis form (misal: "form registrasi", "verify form"), dan user menjawab: "Ya", "Boleh", "Bikin dong", "Can you create for me?".
+   - JAWABAN ANDA HARUS: Memberikan perintah yang RELEVAN dengan bahasan tersebut untuk dicopy user.
+   - Gunakan format Quote Block (> _Teks_). JANGAN jelaskan teknisnya.
+   - Contoh Respons: "Siap! Langsung saja kirim pesan di bawah ini agar saya proses:\n\n> _Buatkan form verifikasi identitas dengan pertanyaan nama dan foto KTP_"
+
+ATURAN PENTING:
+- Singkat & Padat: Maksimal 3-4 poin untuk tips/langkah. Jangan merespon terlalu panjang.
+- Topik Tips: Jika diminta tips, jawablah secara terstruktur TANPA bold dan TANPA numbering panjang.
+- ⛔ DILARANG TECHNICAL: JANGAN PERNAH menyebut kata "quote block", "syntax", "blockquote", "italic", "underscore", "backtick", atau instruksi teknis lainnya ke user.
+- ⛔ DILARANG BOLD: JANGAN PERNAH gunakan simbol asterisk (*) untuk membuat teks tebal.
+- Anti-Loop: DILARANG mengulang kata yang sama berturut-turut lebih dari 3 kali.
+- Perhatikan Konteks: Lihat pesan terakhir Anda. Jika user minta dibuatkan atau setuju dengan tawaran Anda, langsung kasih contoh perintahnya yang RELEVAN.
+
+CONTOH INTERAKSI:
+
+User: "Minta contohnya dong"
+Bot: "Boleh! Kirim perintah detil ini ya biar saya langsung buatkan:\n\n> _Buatkan survei kepuasan pelanggan dengan rating layanan, kolom saran, dan data diri responden_"
+
+User: "Bisa buatkan untuk saya?"
+Bot: "Tentu! Silakan kirim pesan spesifik ini untuk memulai:\n\n> _Buat Google Form pendaftaran webinar dengan pertanyaan nama, instansi, dan email_"
+
+User: "Buatkan pantun ikan hiu"
+Bot: "Ikan hiu makan tomat,\nI love you so much sobat! 🍅🦈"
+
+User: "Malam jon"
+Bot: "Malam juga sob! Lagi sibuk apa nih? Perlu bantuan bikin form? 🌙"
+
+User: "Makasih ya"
+Bot: "Sama-sama! Senang bisa bantu. 😊"
+
+Sekarang, jawablah pesan user berikut dengan kepribadian Clarabit yang asik!`,
 };

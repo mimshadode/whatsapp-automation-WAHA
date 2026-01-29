@@ -10,6 +10,7 @@ export interface ToolContext {
   sessionState: any;
   senderName?: string;
   messageId?: string;
+  replyContext?: string; // Text content of the message being replied to
 }
 
 export interface ToolResponse {
@@ -26,5 +27,6 @@ export enum BotIntent {
   SHARE_FORM = 'SHARE_FORM',
   ACKNOWLEDGMENT = 'ACKNOWLEDGMENT',
   CLARIFICATION = 'CLARIFICATION',
+  GENERAL_QA = 'GENERAL_QA',
   UNKNOWN = 'UNKNOWN'
 }
