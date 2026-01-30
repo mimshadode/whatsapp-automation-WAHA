@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     const isGroupChat = chatId.endsWith('@g.us');
     
     // Fetch session early to get dynamic bot name and temp permissions
-    const session = await sessionManager.getSession(chatId);
+    let session = await sessionManager.getSession(chatId);
     
     // Detect if bot is mentioned (for logging/UX, not for bypass)
     let isMentionedInGroup = false;
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
             
             // Get names to check: Env names + Dynamic name
             const envNames = (process.env.BOT_MENTION_NAMES || 'Clara,Bot,Admin').toLowerCase().split(',').map(n => n.trim());
-            const dynamicName = session?.sessionState?.metadata?.botName;
+            const dynamicName = (session?.sessionState as any)?.metadata?.botName;
             
             const namesToCheck = [...envNames];
             if (dynamicName) {
@@ -337,8 +337,9 @@ export async function POST(req: Request) {
     }
 
     // Session Management (Database + Cache) - MOVED UP to support dynamic aliases
-    console.log(`[Webhook] Fetching session for ${chatId}...`);
-    let session = await sessionManager.getSession(chatId);
+    // Session Management (Database + Cache) - MOVED UP to support dynamic aliases
+    // session is already fetched at the top of the file
+    // check if it exists or create new one
     
     if (!session) {
         console.log(`[Webhook] Session NOT FOUND. Creating...`);
