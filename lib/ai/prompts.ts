@@ -249,7 +249,14 @@ Respons (singkat dan jelas):`,
 LAYOUT TEMPLATE:
 ✅ *Form Berhasil Dibuat!* (or equivalent in target language)
 
-📄 *Nama Form:* ${data.title}\n\n📊 *Total Pertanyaan:* ${data.questionCount}${data.sharedWith && data.sharedWith.length > 0 ? `\n👥 *Editor:* ${data.sharedWith.join(", ")}` : ""}\n\n🔗 *Link Form:* ${data.shortUrl}\n\n✏️ *Edit Form:* ${data.editUrl}${data.spreadsheetUrl ? `\n📊 *Link Spreadsheet:* ${data.spreadsheetUrl}` : ""}
+📄 *Nama Form:* ${data.title}
+📊 *Total Pertanyaan:* ${data.questionCount}${data.sharedWith && data.sharedWith.length > 0 ? `\n👥 *Editor:* ${data.sharedWith.join(", ")}` : ""}
+
+🔗 *Link Form:*
+${data.shortUrl}
+
+✏️ *Edit Form:*
+${data.editUrl}${data.spreadsheetUrl ? `\n\n📊 *Link Spreadsheet:*\n${data.spreadsheetUrl}` : ""}
 
 Ada lagi yang bisa saya bantu?
 
