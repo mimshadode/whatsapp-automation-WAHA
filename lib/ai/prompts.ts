@@ -234,6 +234,7 @@ Respons (singkat dan jelas):`,
     editUrl: string;
     spreadsheetUrl?: string;
     sharedWith?: string[];
+    qrCodeUrl?: string;
     query: string;
   }) => `Generate a structured WhatsApp success message in the SAME LANGUAGE as the user's query: "${data.query}".
 
@@ -250,13 +251,15 @@ LAYOUT TEMPLATE:
 ✅ *Form Berhasil Dibuat!* (or equivalent in target language)
 
 📄 *Nama Form:* ${data.title}
-📊 *Total Pertanyaan:* ${data.questionCount}${data.sharedWith && data.sharedWith.length > 0 ? `\n👥 *Editor:* ${data.sharedWith.join(", ")}` : ""}
+📊 *Total Pertanyaan:* ${data.questionCount}${data.sharedWith && data.sharedWith.length > 0 ? `\n👥 *Dibagikan ke:* ${data.sharedWith.join(", ")}` : ""}
+
+━━━━━━━━━━━━━━━━
 
 🔗 *Link Form:*
 ${data.shortUrl}
 
 ✏️ *Edit Form:*
-${data.editUrl}${data.spreadsheetUrl ? `\n\n📊 *Link Spreadsheet:*\n${data.spreadsheetUrl}` : ""}
+${data.editUrl}${data.spreadsheetUrl ? `\n\n📈 *Spreadsheet:*\n${data.spreadsheetUrl}` : ""}${data.qrCodeUrl ? `\n\n🎯 *QR Code:*\n${data.qrCodeUrl}` : ""}
 
 Ada lagi yang bisa saya bantu?
 

@@ -198,6 +198,7 @@ export class GoogleFormCreatorTool implements AITool {
           editUrl: editUrl || '',
           spreadsheetUrl: spreadsheetUrl || undefined,
           sharedWith: sharedWith,
+          qrCodeUrl: qrCode,
           query: query
         }),
         query
