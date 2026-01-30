@@ -301,6 +301,37 @@ export class GoogleFormsOAuthClient {
   }
 
   /**
+   * Search for a form by name (approximate match)
+   * Returns the most likely match's ID
+   */
+  async findFormIdByName(name: string): Promise<string | null> {
+    try {
+      console.log(`[GoogleFormsOAuth] Searching for form with name: "${name}"`);
+      // Search in Drive for files with type form and name containing the query
+      // name contains '${name}' and mimeType = 'application/vnd.google-apps.form'
+      const response = await this.drive.files.list({
+        q: `mimeType = 'application/vnd.google-apps.form' and name contains '${name}' and trashed = false`,
+        fields: 'files(id, name, createdTime)',
+        orderBy: 'createdTime desc', // Prefer usage of most recent? Or maybe relevance?
+        pageSize: 5
+      });
+
+      const files = response.data.files;
+      if (!files || files.length === 0) {
+        console.log('[GoogleFormsOAuth] No form found with that name.');
+        return null;
+      }
+
+      console.log(`[GoogleFormsOAuth] Found ${files.length} candidates. Top match: ${files[0].name} (${files[0].id})`);
+      // Return the most recent one (first in list due to orderBy)
+      return files[0].id || null;
+    } catch (error: any) {
+      console.error('[GoogleFormsOAuth] Error searching form by name:', error.message);
+      return null; // Don't throw, just return null so tool can ask for clarification
+    }
+  }
+
+  /**
    * Get form responses
    */
   async getResponses(formId: string) {
@@ -314,7 +345,7 @@ export class GoogleFormsOAuthClient {
   }
 
   /**
-   * Update form (add/remove questions)
+   * Update form (add/remove questions) - Low level
    */
   async updateForm(formId: string, updates: any[]) {
     try {
@@ -327,6 +358,96 @@ export class GoogleFormsOAuthClient {
       console.error('[GoogleFormsOAuth] Error updating form:', error);
       throw error;
     }
+  }
+
+  /**
+   * Add questions to an existing form
+   */
+  async addQuestions(formId: string, questions: FormQuestion[]) {
+    try {
+      // 1. Get current form to find index? Or just append (index not specified = append)
+      // We will append by default.
+      
+      const requests: any[] = [];
+      
+      questions.forEach((q, index) => {
+        const item: any = {
+          title: q.title,
+          description: q.description,
+        };
+
+        if (q.type === 'section') {
+           item.pageBreakItem = {};
+        } else {
+           item.questionItem = {
+            question: {
+              required: q.required || false,
+              ...this.buildQuestionConfig(q)
+            }
+          };
+        }
+        
+        // No location = append to end
+        requests.push({
+          createItem: {
+             item: item,
+             location: { index: index } // Relative index? No, API requires absolute.
+             // If we omit location, it appends to the end.
+             // But if we send multiple, order matters.
+             // Actually, "location" in "createItem" is where to insert. 
+             // If omitted, it adds to the end.
+             // IMPORTANT: Batch requests are processed in order.
+             // If we rely on default "append", it should be fine.
+          }
+        });
+        
+        // FIX: The batchUpdate index handling in Google Forms API is tricky.
+        // If we want to append efficiently in order, we can omit location for the first one,
+        // then omit for the second?
+        // Actually, let's just NOT specify location so it appends to end.
+        delete requests[requests.length - 1].createItem.location;
+      });
+
+      if (requests.length > 0) {
+        await this.updateForm(formId, requests);
+      }
+      
+      return { success: true, count: questions.length };
+    } catch (error: any) {
+      console.error('[GoogleFormsOAuth] Error adding questions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update form title and description
+   */
+  async updateInfo(formId: string, title?: string, description?: string) {
+    const requests: any[] = [];
+    
+    if (title) {
+      requests.push({
+        updateFormInfo: {
+          info: { title, documentTitle: title },
+          updateMask: 'title,documentTitle'
+        }
+      });
+    }
+    
+    if (description) {
+         requests.push({
+        updateFormInfo: {
+          info: { description },
+          updateMask: 'description'
+        }
+      });
+    }
+    
+    if (requests.length > 0) {
+      await this.updateForm(formId, requests);
+    }
+    
+    return { success: true };
   }
 
   /**

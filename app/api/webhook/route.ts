@@ -20,7 +20,8 @@ async function getMediaParser() {
   return mediaParser;
 }
 export async function POST(req: Request) {
-  console.log('[Webhook] POST request received');
+    const env = process.env.VERCEL_ENV || 'local';
+    console.log(`[Webhook] POST request received (Env: ${env})`);
   console.log('[Webhook] DB URL:', process.env.DATABASE_URL?.substring(0, 20) + '...');
   console.log('[Webhook] REDIS URL:', process.env.REDIS_URL);
   

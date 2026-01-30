@@ -5,7 +5,22 @@ export class WAHAClient {
   private sessionName: string;
 
   constructor() {
-    this.sessionName = 'default';
+    // Determine session name:
+    // 1. Explicit env var WAHA_SESSION_NAME
+    // 2. Or 'default-dev' if VERCEL_ENV is 'development'
+    // 3. Fallback to 'default'
+    if (process.env.WAHA_SESSION_NAME) {
+      this.sessionName = process.env.WAHA_SESSION_NAME;
+    } else if (process.env.VERCEL_ENV === 'development') {
+      this.sessionName = 'default'; // Keep default for local dev unless specified
+    } else {
+      this.sessionName = 'default';
+    }
+    
+    // Log environment for debugging
+    const env = process.env.VERCEL_ENV || 'local';
+    console.log(`[WAHA Client] Initialized. Env: ${env}, Session: ${this.sessionName}`);
+
     this.client = axios.create({
       baseURL: process.env.WAHA_API_URL || 'http://localhost:5000',
       headers: {

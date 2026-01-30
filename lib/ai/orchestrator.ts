@@ -7,6 +7,7 @@ import { ScheduleCheckerTool } from './tools/schedule-checker';
 import { FormAnalyticsTool } from './tools/form-analytics';
 import { GeneralQATool } from './tools/general-qa-tool';
 import { UserAuthorizationTool } from './tools/user-authorization-tool';
+import { GoogleFormUpdaterTool } from './tools/google-form-updater';
 import { Prompts } from './prompts';
 
 export class AIOrchestrator {
@@ -21,6 +22,7 @@ export class AIOrchestrator {
     
     // Core Tools
     this.tools.set(BotIntent.CREATE_FORM, new GoogleFormCreatorTool());
+    this.tools.set(BotIntent.UPDATE_FORM, new GoogleFormUpdaterTool());
     this.tools.set(BotIntent.SHARE_FORM, new FormContributorTool());
     this.tools.set(BotIntent.CHECK_SCHEDULE, new ScheduleCheckerTool());
     this.tools.set(BotIntent.CHECK_RESPONSES, new FormAnalyticsTool());
@@ -142,11 +144,24 @@ export class AIOrchestrator {
       return BotIntent.CREATE_FORM;
     }
 
+    // EXCEPTION: Check for phrases that suggest this is NOT a direct command
+    // e.g. "Kalau mau buat google form..." (Conditional)
+    // e.g. "Suruh beliau buat google form..." (Third person / Recommendation)
+    // e.g. "Cara buat google form..." (Question)
+    const nonCommandPatterns = [
+      'contoh kata', 'contoh kalimat', 'contoh perintah', 'contoh pesan',
+      'bagaimana cara', 'cara membuat', 'apa yang harus', 'gimana caranya', 'caranya gimana', 'cara bikin',
+      'beritahui contoh', 'kasih contoh', 'berikan contoh',
+      'kalau', 'jika', 'misal', 'seandainya', // Conditional
+      'suruh', 'minta', 'tanya', 'beliau', 'dia', 'mereka' // Third person reference
+    ];
+
+    const isNonCommand = nonCommandPatterns.some(p => lowerMsg.includes(p));
+
     // Rule-based shortcut: Common "create Google Form" phrasing
     // Helps reliably catch requests like:
-    // "Buatkan google formulir pendaftaran tarik ulur perasaan batch 3.
-    //  Url nya bit.ly/lomba-batch-3. Dengan deskripsi yang menarik,
-    //  nama, alamat, dan nomor HP Masukan mimshad@mail.com sebagai editor."
+    // "Buatkan google formulir pendaftaran tarik ulur perasaan batch 3..."
+    // BUT ONLY IF it's not a non-command (conditional/question/reference)
     const createFormPatterns = [
       'buatkan google form',
       'buat google form',
@@ -161,34 +176,14 @@ export class AIOrchestrator {
       'link pendaftaran',
     ];
 
-    // EXCEPTION: If user is asking for EXAMPLE phrases/commands, route to GENERAL_QA
-    // This prevents "contoh kata-kata untuk membuat form" from triggering CREATE_FORM
-    const examplePhrasePatterns = [
-      'contoh kata',
-      'contoh kalimat',
-      'contoh perintah',
-      'contoh pesan',
-      'bagaimana cara',
-      'cara membuat',
-      'apa yang harus',
-      'gimana caranya',
-      'caranya gimana',
-      'cara bikin',
-      'beritahui contoh',  // From the screenshot issue
-      'kasih contoh',
-      'berikan contoh',
-    ];
-    
-    const isAskingForExample = examplePhrasePatterns.some(p => lowerMsg.includes(p));
-    
-    if (isAskingForExample) {
-      console.log('[AIOrchestrator] Detected EXAMPLE request → routing to GENERAL_QA');
-      return BotIntent.GENERAL_QA;
-    }
-
-    if (createFormPatterns.some(p => lowerMsg.includes(p))) {
-      console.log('[AIOrchestrator] Detected rule-based CREATE_FORM intent');
-      return BotIntent.CREATE_FORM;
+    // Only apply shortcut if it's NOT a non-command question/reference
+    // If it IS a non-command, fall through to AI for better classification (likely GENERAL_QA)
+    if (!isNonCommand) {
+      const isCreateFormShortcut = createFormPatterns.some(p => lowerMsg.includes(p));
+      if (isCreateFormShortcut) {
+        console.log('[AIOrchestrator] Detected create form pattern shortcut → CREATE_FORM intent');
+        return BotIntent.CREATE_FORM;
+      }
     }
 
     // Quick check: Very short clarification questions (less than 30 chars and no form keywords)
@@ -219,6 +214,7 @@ export class AIOrchestrator {
     if (intentStr.includes('IDENTITY')) return BotIntent.IDENTITY;
     if (intentStr.includes('ACKNOWLEDGMENT')) return BotIntent.ACKNOWLEDGMENT;
     if (intentStr.includes('CREATE_FORM')) return BotIntent.CREATE_FORM;
+    if (intentStr.includes('UPDATE_FORM')) return BotIntent.UPDATE_FORM;
     if (intentStr.includes('CHECK_RESPONSES')) return BotIntent.CHECK_RESPONSES;
     if (intentStr.includes('SHARE_FORM')) return BotIntent.SHARE_FORM;
     if (intentStr.includes('CHECK_SCHEDULE')) return BotIntent.CHECK_SCHEDULE;

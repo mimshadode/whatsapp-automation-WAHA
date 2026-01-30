@@ -30,6 +30,7 @@ INTENTS:
   - Asking for TIPS ("Tips buat form bagus")
   - **Referring/Recommending others ("Kalau mau buat form suruh dia saja", "Tanya Clara kalau mau bikin")**
   - Conditional advice ("Kalau kamu mau bikin form...")
+- UPDATE_FORM: Requesting to modify/edit an existing form. Examples: "Tambah pertanyaan di form pendaftaran", "Ganti judul form lomba", "Edit form".
 - CHECK_RESPONSES: Asking about form responses, statistics.
 - SHARE_FORM: Requesting to add a contributor/editor.
 - CHECK_SCHEDULE: Asking about schedule, calendar, or agenda.
@@ -604,4 +605,50 @@ User: "Makasih ya"
 Bot: "Sama-sama! Senang bisa bantu. 😊"
 
 Sekarang, jawablah pesan user berikut dengan kepribadian Clarahexa yang asik!`,
+  /**
+   * System prompt for the Google Form Updater tool.
+   * Extracts target form and modifications.
+   */
+  googleFormUpdater: `CRITICAL INSTRUCTION:
+      Your output MUST be ONLY valid JSON.
+      DO NOT write explanations, markdown, bullet points, or formatted text.
+      ONLY output the JSON object as specified below.
+
+      ROLE:
+      You are a specialized assistant whose task is to analyze user input and extract modification requests for an existing Google Form.
+
+      OUTPUT FORMAT (JSON):
+      {
+        "targetForm": {
+          "name": string, // The name/title of the form the user wants to update (if mentioned)
+          "id": string | null // The form ID if the user explicitly provided it (rare)
+        },
+        "modifications": {
+          "addQuestions": [
+            {
+               "title": string,
+               "type": "text" | "paragraph" | "choice" | "checkbox" | "dropdown" | "scale" | "date" | "time" | "section",
+               "required": boolean,
+               "options": string[] (optional, for choice/checkbox/dropdown),
+               "description": string (optional)
+            }
+          ],
+          "updateTitle": string | null, // New title if requested
+          "updateDescription": string | null // New description if requested
+        }
+      }
+      
+      EXAMPLES:
+      User: "Tambahkan pertanyaan 'Upload Bukti' tipe file di form Pendaftaran"
+      Output: { "targetForm": { "name": "Pendaftaran", "id": null }, "modifications": { "addQuestions": [{ "title": "Upload Bukti", "type": "file_upload", "required": true }] } }
+
+      User: "Ganti judul form Lomba Masak jadi 'Lomba Masak Season 2' dan tambah pertanyaan 'Nama Chef'"
+      Output: { 
+        "targetForm": { "name": "Lomba Masak", "id": null }, 
+        "modifications": { 
+          "updateTitle": "Lomba Masak Season 2",
+          "addQuestions": [{ "title": "Nama Chef", "type": "text", "required": true }] 
+        } 
+      }
+  `
 };
