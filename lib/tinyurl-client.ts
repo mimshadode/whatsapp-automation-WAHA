@@ -41,11 +41,17 @@ export class TinyURLClient {
       // Add custom alias if provided
       if (alias && alias.trim().length > 0) {
         // Clean alias: remove special chars, spaces, and make it URL-safe
-        const cleanAlias = alias
+        let cleanAlias = alias
           .toLowerCase()
           .replace(/[^a-z0-9-_]/g, '-')
           .replace(/-+/g, '-')
           .replace(/^-|-$/g, '');
+        
+        // TinyURL limit: 30 characters max
+        if (cleanAlias.length > 30) {
+          cleanAlias = cleanAlias.substring(0, 30).replace(/-$/, '');
+          console.log(`[TinyURLClient] Alias truncated to 30 chars: ${cleanAlias}`);
+        }
         
         if (cleanAlias.length > 0) {
           payload.alias = cleanAlias;
