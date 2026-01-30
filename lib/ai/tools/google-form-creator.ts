@@ -1,7 +1,7 @@
 import { AITool, ToolContext, ToolResponse } from '../types';
 import { BiznetGioClient } from '@/lib/biznetgio-client';
 import { GoogleFormsOAuthClient, FormQuestion } from '@/lib/google-forms-oauth-client';
-import { BitlyClient } from '@/lib/bitly-client';
+import { TinyURLClient } from '@/lib/tinyurl-client';
 import { Prompts } from '../prompts';
 
 export class GoogleFormCreatorTool implements AITool {
@@ -10,12 +10,12 @@ export class GoogleFormCreatorTool implements AITool {
   
   private biznet: BiznetGioClient;
   private googleForms: GoogleFormsOAuthClient;
-  private bitly: BitlyClient;
+  private tinyurl: TinyURLClient;
 
   constructor() {
     this.biznet = new BiznetGioClient();
     this.googleForms = new GoogleFormsOAuthClient();
-    this.bitly = new BitlyClient();
+    this.tinyurl = new TinyURLClient();
   }
 
   getSystemPrompt(): string {
@@ -137,11 +137,12 @@ export class GoogleFormCreatorTool implements AITool {
         console.log(`[GoogleFormTool] Generated automatic custom keyword: ${customKeyword}`);
       }
 
-      const shortUrl = await this.bitly.shorten(result.url || '', customKeyword);
+      const shortUrl = await this.tinyurl.shorten(result.url || '', customKeyword);
       
-      // Generate QR Code using public QRServer.com
+      // Generate QR Code download URL
       console.log(`[GoogleFormTool] Generating QR code for: ${shortUrl}`);
-      const qrCode = await this.bitly.generateQRCode(shortUrl);
+      const { QRCodeGenerator } = await import('@/lib/qr-generator');
+      const qrCode = QRCodeGenerator.generateQRCodeURL(shortUrl);
       
       // Public links are shortened, direct links for edit and spreadsheet are kept original as requested
       const editUrl = result.editUrl;
