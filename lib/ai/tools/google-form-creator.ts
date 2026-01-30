@@ -122,19 +122,12 @@ export class GoogleFormCreatorTool implements AITool {
 
       console.log('[GoogleFormTool] Form created successfully:', result.formId);
 
-      // 7. Shorten links using Bitly (Only for public URL)
-      let customKeyword = data.customKeyword;
+      // 7. Shorten links using TinyURL (Only for public URL)
+      // AI will generate smart customKeyword based on form purpose
+      const customKeyword = data.customKeyword;
       
-      // Auto-generate custom keyword from title if not provided
-      if (!customKeyword && data.title) {
-        customKeyword = data.title
-          .toLowerCase()
-          .replace(/[^\w\s-]/g, '') // Remove non-alphanumeric except spaces and hyphens
-          .trim()
-          .replace(/\s+/g, '-')     // Replace spaces with hyphens
-          .replace(/-+/g, '-');     // Replace multiple hyphens with single hyphen
-          
-        console.log(`[GoogleFormTool] Generated automatic custom keyword: ${customKeyword}`);
+      if (customKeyword) {
+        console.log(`[GoogleFormTool] Using AI-generated keyword: ${customKeyword}`);
       }
 
       const shortUrl = await this.tinyurl.shorten(result.url || '', customKeyword);

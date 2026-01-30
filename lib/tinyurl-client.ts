@@ -84,17 +84,24 @@ export class TinyURLClient {
     } catch (error: any) {
       const errorData = error.response?.data;
       
-      // Handle alias already taken error
-      if (errorData && errorData.errors) {
-        const aliasError = errorData.errors.find((e: any) => 
-          e.includes('alias') || e.includes('already') || e.includes('taken')
-        );
+      // Handle alias conflict errors
+      if (errorData && errorData.code === 5) {
+        const errorMessage = errorData.errors?.[0] || '';
         
-        if (aliasError && alias) {
-          // Retry with a random suffix
-          const suffix = Math.floor(100 + Math.random() * 900);
-          const fallbackAlias = `${alias}-${suffix}`;
-          console.log(`[TinyURLClient] Alias taken, retrying with: ${fallbackAlias}`);
+        // Check if error is about alias availability or length
+        const isAliasUnavailable = errorMessage.includes('not available') || 
+                                   errorMessage.includes('already') || 
+                                   errorMessage.includes('taken');
+        
+        const isAliasTooLong = errorMessage.includes('greater than 30');
+        
+        if (isAliasUnavailable && alias) {
+          // Generate unique suffix using timestamp
+          const timestamp = Date.now().toString().slice(-6); // Last 6 digits
+          const baseAlias = alias.length > 23 ? alias.substring(0, 23) : alias; // Reserve 7 chars for suffix
+          const fallbackAlias = `${baseAlias}-${timestamp}`;
+          
+          console.log(`[TinyURLClient] Alias unavailable, retrying with unique suffix: ${fallbackAlias}`);
           
           try {
             const fallbackResponse = await axios.post(
@@ -116,9 +123,11 @@ export class TinyURLClient {
               console.log(`[TinyURLClient] Success with fallback: ${fallbackResponse.data.data.tiny_url}`);
               return fallbackResponse.data.data.tiny_url;
             }
-          } catch (fallbackError) {
-            console.error('[TinyURLClient] Fallback also failed');
+          } catch (fallbackError: any) {
+            console.error('[TinyURLClient] Fallback also failed:', fallbackError.response?.data || fallbackError.message);
           }
+        } else if (isAliasTooLong) {
+          console.error('[TinyURLClient] Alias too long even after truncation. This should not happen.');
         }
       }
 

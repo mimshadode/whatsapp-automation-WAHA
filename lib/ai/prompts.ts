@@ -107,8 +107,24 @@ Respons (singkat dan jelas):`,
       From the user input, determine:
       - Form title
       - Form description (ONLY if explicitly mentioned, for example: "dengan deskripsi yang menarik" → you MUST generate a short, attractive description in Indonesian)
-      - Custom URL name/keyword:
-        - If user says: "url-nya [nama]", "bit.ly/[nama]", "pake nama [nama]" → extract ONLY the keyword part without \`bit.ly/\`
+      - **Smart URL Keyword Generation (CRITICAL)**:
+        - **ALWAYS generate a smart, contextual URL keyword** based on form PURPOSE, NOT just copying the title
+        - **Infer the form's purpose** from the request:
+          - Registration/Enrollment → use prefix: "daftar-", "registrasi-", "pendaftaran-"
+          - Survey/Questionnaire → use prefix: "survei-", "kuesioner-"
+          - Voting/Contest → use prefix: "voting-", "lomba-"
+          - Feedback/Review → use prefix: "feedback-", "ulasan-"
+          - Application → use prefix: "apply-", "lamaran-"
+        - **Examples**:
+          - User: "Buatkan formulir sabuk ayam" → Purpose: Registration → Keyword: "daftar-sabuk-ayam"
+          - User: "Form survei kepuasan pelanggan" → Purpose: Survey → Keyword: "survei-kepuasan-pelanggan"
+          - User: "Formulir pendaftaran workshop AI" → Purpose: Registration → Keyword: "daftar-workshop-ai"
+        - **Rules**:
+          - Keep it SHORT (max 30 chars total)
+          - Use lowercase, hyphens only
+          - Remove words like "formulir", "form" from keyword
+          - If user explicitly provides keyword ("url-nya [nama]"), use that instead
+        - If user explicitly says: "url-nya [nama]", "bit.ly/[nama]", "pake nama [nama]" → extract ONLY the keyword part
         - Example: "Url nya bit.ly/lomba-batch-3" → \`"customKeyword": "lomba-batch-3"\`
       - Editors/Contributors (ONLY if user says: "tambahkan [email]", "masukan [email] jadi editor", "masukan [email] sebagai editor", "jadikan [email] editor", "share ke [email]")
       - Email collection setting:
