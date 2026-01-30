@@ -417,9 +417,10 @@ export async function POST(req: Request) {
             }
         }
 
-        // Add human-like delay before responding (minimum 30 seconds)
-        const minDelay = 30000; // 30 seconds
-        const maxDelay = 45000; // 45 seconds
+        // Add human-like delay before responding (5-10 seconds)
+        // AI processing already takes time, so just brief pause before sending
+        const minDelay = 5000;  // 5 seconds
+        const maxDelay = 10000; // 10 seconds
         const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
         
         console.log(`[Webhook] Waiting ${delay}ms before sending response (human-like delay)...`);
