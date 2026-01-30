@@ -412,14 +412,10 @@ export async function POST(req: Request) {
         }
     }
 
-    // --- QR CODE HANDLING (TEXT FALLBACK FOR NON-PLUS WAHA) ---
-    let finalReplyText = replyText;
-    if (response.newState?.lastFormQrUrl) {
-        finalReplyText += `\n\n🖼️ *QR Code Link:* \n${response.newState.lastFormQrUrl}`;
-    }
+
 
     console.log(`[Webhook] Sending response via WAHA to ${chatId}... (MsgID: ${messageId})`);
-    await waha.sendText(chatId, finalReplyText, messageId, mentions);
+    await waha.sendText(chatId, replyText, messageId, mentions);
     
     console.log(`[Webhook] Response process completed.`);
 
