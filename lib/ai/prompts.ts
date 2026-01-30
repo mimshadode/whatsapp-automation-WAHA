@@ -24,11 +24,16 @@ export const Prompts = {
 INTENTS:
 - IDENTITY: Asking who you are, what you can do, greeting (halo, hi, hello), or calling you by name (Clarahexa, Clara).
 - ACKNOWLEDGMENT: Simple acknowledgment or thanks (oke, ok, baik, terima kasih, thanks, siap, noted).
-- CREATE_FORM: Requesting to create a form or survey WITH SPECIFIC DETAILS in the [PESAN USER] part. Examples: "Buatkan form pendaftaran dengan nama, email", "Buat formulir lomba dengan...". **IMPORTANT: Questions asking IF you can create forms, HOW to create forms, or asking for TIPS are NOT CREATE_FORM. ALSO: Vague agreements like "Oke buatkan", "Gas", "Boleh" WITHOUT details are GENERAL_QA.**
+- CREATE_FORM: Requesting to create a form or survey for THEMSELVES or DIRECTLY. Examples: "Buatkan form pendaftaran", "Bikin formulir lomba". **IMPORTANT EXCLUSIONS (Classify as GENERAL_QA):**
+  - Asking IF you can create forms ("Bisa buat form?")
+  - Asking HOW to create forms ("Caranya gimana?")
+  - Asking for TIPS ("Tips buat form bagus")
+  - **Referring/Recommending others ("Kalau mau buat form suruh dia saja", "Tanya Clara kalau mau bikin")**
+  - Conditional advice ("Kalau kamu mau bikin form...")
 - CHECK_RESPONSES: Asking about form responses, statistics.
 - SHARE_FORM: Requesting to add a contributor/editor.
 - CHECK_SCHEDULE: Asking about schedule, calendar, or agenda.
-- GENERAL_QA: General questions, chitchat, capability questions, asking for TIPS/GUIDES, or CONTEXTUAL AGREEMENTS ("Oke buatkan", "Gas", "Lanjut", "Mau").
+- GENERAL_QA: General questions, chitchat, capability questions, asking for TIPS/GUIDES, CONTEXTUAL AGREEMENTS ("Oke buatkan", "Gas", "Lanjut", "Mau"), OR REFERRING/RECOMMENDING OTHERS ("Suruh dia buat form").
 - UNKNOWN: Truly out of scope or unclear messages.
 
 USER MESSAGE: "${message}"
