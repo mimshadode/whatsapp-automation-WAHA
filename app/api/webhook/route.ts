@@ -84,7 +84,12 @@ export async function POST(req: Request) {
         
         // 2. Check if bot is mentioned via NAME (Text)
         if (!isMentionedInGroup) {
+            // Normalize whitespace: replace ALL unicode spaces (including Narrow NBSP \u202F) with single space
+            // \u00A0: NBSP, \u2000-\u200B: various spaces, \u2028/9: separators, \u202F: NARROW NBSP, \u205F: MMSP, \u3000: IDEOGRAPHIC
+            const normalizeBox = (str: string) => str.replace(/[\u00A0\u2000-\u200B\u2028-\u2029\u202F\u205F\u3000\s]+/g, ' ').trim().toLowerCase();
+            
             const messageBody = (payload.body || '').toLowerCase();
+            const normalizedBody = normalizeBox(payload.body || '');
             
             // Get names to check: Env names + Dynamic name
             const envNames = (process.env.BOT_MENTION_NAMES || 'Clara,Bot,Admin').toLowerCase().split(',').map(n => n.trim());
@@ -92,14 +97,38 @@ export async function POST(req: Request) {
             
             const namesToCheck = [...envNames];
             if (dynamicName) {
-                namesToCheck.push(dynamicName.toLowerCase());
+                const normalizedDynName = dynamicName.toLowerCase();
+                if (!namesToCheck.includes(normalizedDynName)) {
+                     namesToCheck.push(normalizedDynName);
+                }
+                
+                // Also push the rigorous normalized version
+                const rigorousNorm = normalizeBox(dynamicName);
+                if (!namesToCheck.includes(rigorousNorm)) {
+                    namesToCheck.push(rigorousNorm);
+                }
+                
+                // DEBUG: Log character codes if name contains suspicious characters
+                if (/[^\x20-\x7E]/.test(dynamicName)) {
+                    console.log(`[Webhook] Dynamic name contains special chars: "${dynamicName}" (Hex: ${Buffer.from(dynamicName).toString('hex')})`);
+                }
             }
             
-            // Check if any name matches
-            isMentionedInGroup = namesToCheck.some(name => messageBody.includes(name));
+            // Check if any name matches (check both raw body and normalized body)
+            isMentionedInGroup = namesToCheck.some(name => {
+                 const normName = normalizeBox(name);
+                 const matches = messageBody.includes(name) || normalizedBody.includes(normName);
+                 if (matches) {
+                     console.log(`[Webhook] Matched name: "${name}" (Norm: "${normName}") in Body: "${normalizedBody}"`);
+                 }
+                 return matches;
+            });
             
             if (isMentionedInGroup) {
                 console.log(`[Webhook] Bot mentioned by NAME in group: "${payload.body}"`);
+            } else if (dynamicName) {
+                // Debug log for failure case if dynamic name exists
+                console.log(`[Webhook] DEBUG: Failed to match dynamic name "${dynamicName}" in body "${normalizedBody}". Checks: ${JSON.stringify(namesToCheck)}`);
             }
         }
         
