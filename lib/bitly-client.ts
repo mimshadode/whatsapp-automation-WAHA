@@ -166,10 +166,11 @@ export class BitlyClient {
   }
 
   /**
-   * Generate a public QR code URL using QRServer.com
-   * This is free, requires no authentication, and works for WAHA non-plus
+   * Generate a downloadable QR code URL
+   * Uses our API proxy to force download instead of display
    */
   async generateQRCode(url: string): Promise<string> {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    return `${appUrl}/api/qr/download?url=${encodeURIComponent(url)}`;
   }
 }
