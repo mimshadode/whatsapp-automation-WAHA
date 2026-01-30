@@ -57,14 +57,76 @@ export async function POST(req: Request) {
         chatId = payload._data.key.remoteJidAlt;
     }
     
-    // --- WHITELIST FILTER FOR PRIVATE CHATS ---
-    // Only apply whitelist to private chats (not groups)
+    // --- WHITELIST FILTER ---
     const isGroupChat = chatId.endsWith('@g.us');
+    
+    // Detect if bot is mentioned (for logging/UX, not for bypass)
+    let isMentionedInGroup = false;
+    if (isGroupChat) {
+        const mentionedJids = payload.mentionedIds || payload._data?.mentionedJid || [];
+        const botNumber = process.env.BOT_PHONE_NUMBER;
+        
+        if (botNumber) {
+            const botJids = [
+                `${botNumber}@s.whatsapp.net`,
+                `${botNumber}@c.us`,
+                botNumber
+            ];
+            
+            isMentionedInGroup = mentionedJids.some((jid: string) => 
+                botJids.some(botJid => jid.includes(botJid.replace('@s.whatsapp.net', '').replace('@c.us', '')))
+            );
+            
+            if (isMentionedInGroup) {
+                console.log(`[Webhook] Bot mentioned in group by ${payload.participant || payload.from}`);
+            }
+        }
+    }
+    
+    // Private chats: Only allowed users
     if (!isGroupChat) {
         const allowedUsers = process.env.ALLOWED_USERS?.split(',').map(u => u.trim()).filter(Boolean) || [];
         if (allowedUsers.length > 0 && !allowedUsers.includes(chatId)) {
             console.log(`[Webhook] Private chat from unauthorized user: ${chatId}`);
             return NextResponse.json({ status: 'ignored', reason: 'unauthorized_user' });
+        }
+    } else {
+        // Group chats: Check permanent OR temporary access (mention is NOT enough)
+        const allowedGroupUsers = process.env.ALLOWED_GROUP_USERS?.split(',').map(u => u.trim()).filter(Boolean) || [];
+        const sender = payload.participant || payload._data?.participant;
+        
+        // Check permanent access first
+        const hasPermanentAccess = allowedGroupUsers.includes(sender || '');
+        
+        // Check temporary access from session state
+        let hasTempAccess = false;
+        if (!hasPermanentAccess && sender) {
+            const session = await sessionManager.getSession(chatId);
+            if (session && session.sessionState) {
+                const sessionState = session.sessionState as any;
+                const tempUsers = sessionState.temporaryAllowedUsers?.[chatId] || [];
+                const now = Date.now();
+                
+                hasTempAccess = tempUsers.some((entry: any) => 
+                    entry.userId === sender && entry.expiresAt > now
+                );
+                
+                if (hasTempAccess) {
+                    const grantedBy = tempUsers.find((e: any) => e.userId === sender)?.grantedBy;
+                    console.log(`[Webhook] User ${sender} has temporary access (granted by ${grantedBy})`);
+                }
+            }
+        }
+        
+        // Reject if no permanent AND no temporary access
+        // NOTE: Mentioning the bot is NOT enough - user must be authorized
+        if (allowedGroupUsers.length > 0 && !hasPermanentAccess && !hasTempAccess) {
+            if (isMentionedInGroup) {
+                console.log(`[Webhook] Bot mentioned but sender unauthorized (no permanent/temp access): ${sender}`);
+            } else {
+                console.log(`[Webhook] Group message from unauthorized user: ${sender}`);
+            }
+            return NextResponse.json({ status: 'ignored', reason: 'unauthorized_group_user' });
         }
     }
     
@@ -383,12 +445,18 @@ export async function POST(req: Request) {
     const stopTyping = waha.startLongTyping(chatId, messageId);
 
     try {
+        // Extract mentioned users and sender for authorization
+        const mentionedJids = payload.mentionedIds || payload._data?.mentionedJid || [];
+        const sender = payload.participant || payload._data?.participant || payload.from;
+
         const response = await orchestrator.handleMessage(message, {
             phoneNumber: chatId,
             sessionState: session.sessionState,
             messageId: messageId,
             senderName: senderName,
-            replyContext: replyContext // Pass the quoted message text
+            replyContext: replyContext, // Pass the quoted message text
+            sender: sender, // For authorization checks
+            mentionedUsers: mentionedJids // For grant access command
         });
 
         const replyText = response.reply;

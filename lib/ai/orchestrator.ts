@@ -6,6 +6,7 @@ import { FormContributorTool } from './tools/form-contributor';
 import { ScheduleCheckerTool } from './tools/schedule-checker';
 import { FormAnalyticsTool } from './tools/form-analytics';
 import { GeneralQATool } from './tools/general-qa-tool';
+import { UserAuthorizationTool } from './tools/user-authorization-tool';
 import { Prompts } from './prompts';
 
 export class AIOrchestrator {
@@ -23,6 +24,7 @@ export class AIOrchestrator {
     this.tools.set(BotIntent.SHARE_FORM, new FormContributorTool());
     this.tools.set(BotIntent.CHECK_SCHEDULE, new ScheduleCheckerTool());
     this.tools.set(BotIntent.CHECK_RESPONSES, new FormAnalyticsTool());
+    this.tools.set(BotIntent.GRANT_ACCESS, new UserAuthorizationTool());
     
     // AI Conversational Tool (One Brain for all chatter)
     const qaTool = new GeneralQATool();
@@ -104,6 +106,29 @@ export class AIOrchestrator {
     if (isCapabilityQuestion) {
       console.log('[AIOrchestrator] Detected capability question → GENERAL_QA intent');
       return BotIntent.GENERAL_QA;
+    }
+    
+    // Quick check: Authorization/Access grant commands
+    const grantAccessPatterns = [
+      'balas pesan dari',
+      'balas pesannya',
+      'kasih akses',
+      'beri akses',
+      'izinkan',
+      'allow.*to use',
+      'give access',
+      'grant access',
+      'respond to'
+    ];
+    
+    const isGrantAccessCommand = grantAccessPatterns.some(p => {
+      const regex = new RegExp(p, 'i');
+      return regex.test(lowerMsg);
+    });
+    
+    if (isGrantAccessCommand) {
+      console.log('[AIOrchestrator] Detected grant access command → GRANT_ACCESS intent');
+      return BotIntent.GRANT_ACCESS;
     }
     
     // Quick check: If message contains form-related keywords, prioritize CHECK_RESPONSES or CREATE_FORM

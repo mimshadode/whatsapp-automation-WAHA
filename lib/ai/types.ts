@@ -11,6 +11,8 @@ export interface ToolContext {
   senderName?: string;
   messageId?: string;
   replyContext?: string; // Text content of the message being replied to
+  sender?: string; // Sender's JID (for authorization checks)
+  mentionedUsers?: string[]; // Mentioned user JIDs
 }
 
 export interface ToolResponse {
@@ -25,6 +27,7 @@ export enum BotIntent {
   CHECK_SCHEDULE = 'CHECK_SCHEDULE',
   CHECK_RESPONSES = 'CHECK_RESPONSES',
   SHARE_FORM = 'SHARE_FORM',
+  GRANT_ACCESS = 'GRANT_ACCESS',
   ACKNOWLEDGMENT = 'ACKNOWLEDGMENT',
   CLARIFICATION = 'CLARIFICATION',
   GENERAL_QA = 'GENERAL_QA',
