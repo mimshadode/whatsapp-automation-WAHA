@@ -44,6 +44,11 @@ export class GeneralQATool implements AITool {
             .join("\n");
       }
 
+      // Add sender name context for personalization
+      if (context.senderName) {
+        contextStr += `\n\nINFO USER:\n- Nama: ${context.senderName}\n\nGunakan nama ini untuk personalisasi sapaan jika user menyapa!`;
+      }
+
       // Priority: Detect language and tone from the CURRENT query
       let systemPrompt = this.getSystemPrompt();
       const botName = sessionState.metadata?.botName;
