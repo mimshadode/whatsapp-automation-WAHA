@@ -378,16 +378,21 @@ export async function POST(req: Request) {
         }
     }
 
-    const response = await orchestrator.handleMessage(message, {
-        phoneNumber: chatId,
-        sessionState: session.sessionState,
-        messageId: messageId,
-        senderName: senderName,
-        replyContext: replyContext // Pass the quoted message text
-    });
+    // Start long-running typing indicator for form creation (can take 1-2 minutes)
+    console.log('[Webhook] Starting typing indicator...');
+    const stopTyping = waha.startLongTyping(chatId, messageId);
 
-    const replyText = response.reply;
-    console.log(`[Webhook] AI Replied: ${replyText.substring(0, 50)}...`);
+    try {
+        const response = await orchestrator.handleMessage(message, {
+            phoneNumber: chatId,
+            sessionState: session.sessionState,
+            messageId: messageId,
+            senderName: senderName,
+            replyContext: replyContext // Pass the quoted message text
+        });
+
+        const replyText = response.reply;
+        console.log(`[Webhook] AI Replied: ${replyText.substring(0, 50)}...`);
 
     // --- PERSISTENCE HANDLING ---
     // Always save lastBotResponse for follow-up context
@@ -402,25 +407,35 @@ export async function POST(req: Request) {
     // Save assistant message
     await sessionManager.saveMessage(chatId, 'assistant', replyText);
 
-    const mentions: string[] = [];
-    if (chatId.includes('@g.us')) {
-        // In groups, mention the sender
-        // Payload 'participant' is the sender in a group
-        const sender = payload.participant || payload._data?.participant;
-        if (sender) {
-            mentions.push(sender);
+        const mentions: string[] = [];
+        if (chatId.includes('@g.us')) {
+            // In groups, mention the sender
+            // Payload 'participant' is the sender in a group
+            const sender = payload.participant || payload._data?.participant;
+            if (sender) {
+                mentions.push(sender);
+            }
         }
+
+        // Add human-like delay before responding (minimum 30 seconds)
+        const minDelay = 30000; // 30 seconds
+        const maxDelay = 45000; // 45 seconds
+        const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+        
+        console.log(`[Webhook] Waiting ${delay}ms before sending response (human-like delay)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        console.log(`[Webhook] Sending response via WAHA to ${chatId}... (MsgID: ${messageId})`);
+        await waha.sendText(chatId, replyText, messageId, mentions);
+        
+        console.log(`[Webhook] Response process completed.`);
+
+        return NextResponse.json({ status: 'success' });
+    } finally {
+        // Always stop typing indicator, even if error occurs
+        console.log('[Webhook] Stopping typing indicator...');
+        stopTyping();
     }
-
-
-
-    console.log(`[Webhook] Sending response via WAHA to ${chatId}... (MsgID: ${messageId})`);
-    await waha.sendText(chatId, replyText, messageId, mentions);
-    
-    console.log(`[Webhook] Response process completed.`);
-
-
-    return NextResponse.json({ status: 'success' });
   } catch (error: any) {
     console.error('[Webhook] Internal Error:', error);
     return NextResponse.json({ 

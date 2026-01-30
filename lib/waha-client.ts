@@ -75,6 +75,32 @@ export class WAHAClient {
   }
 
   /**
+   * Keep typing indicator active for long operations
+   * Returns a cleanup function to stop the interval
+   * 
+   * @param chatId - Chat to show typing in
+   * @param messageId - Optional message ID to mark as seen
+   * @returns Function to stop the typing interval
+   */
+  startLongTyping(chatId: string, messageId?: string): () => void {
+    // Start initial typing
+    this.startTyping(chatId, messageId);
+    
+    // Refresh typing every 10 seconds to keep it active
+    const interval = setInterval(() => {
+      this.setPresence('typing', chatId).catch(err => {
+        console.error('[WAHA] Error refreshing typing:', err);
+      });
+    }, 10000);
+
+    // Return cleanup function
+    return () => {
+      clearInterval(interval);
+      this.stopTyping(chatId);
+    };
+  }
+
+  /**
    * Send text with simulated human behavior (typing indicator + random delay)
    */
   async sendText(chatId: string, text: string, messageId?: string, mentions?: string[]) {
