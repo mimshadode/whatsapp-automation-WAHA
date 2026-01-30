@@ -60,9 +60,13 @@ export async function POST(req: Request) {
     // --- WHITELIST FILTER ---
     const isGroupChat = chatId.endsWith('@g.us');
     
+    // Fetch session early to get dynamic bot name and temp permissions
+    const session = await sessionManager.getSession(chatId);
+    
     // Detect if bot is mentioned (for logging/UX, not for bypass)
     let isMentionedInGroup = false;
     if (isGroupChat) {
+        // 1. Check if bot is mentioned via @tag
         const mentionedJids = payload.mentionedIds || payload._data?.mentionedJid || [];
         const botNumber = process.env.BOT_PHONE_NUMBER;
         
@@ -76,10 +80,31 @@ export async function POST(req: Request) {
             isMentionedInGroup = mentionedJids.some((jid: string) => 
                 botJids.some(botJid => jid.includes(botJid.replace('@s.whatsapp.net', '').replace('@c.us', '')))
             );
+        }
+        
+        // 2. Check if bot is mentioned via NAME (Text)
+        if (!isMentionedInGroup) {
+            const messageBody = (payload.body || '').toLowerCase();
+            
+            // Get names to check: Env names + Dynamic name
+            const envNames = (process.env.BOT_MENTION_NAMES || 'Clara,Bot,Admin').toLowerCase().split(',').map(n => n.trim());
+            const dynamicName = session?.sessionState?.metadata?.botName;
+            
+            const namesToCheck = [...envNames];
+            if (dynamicName) {
+                namesToCheck.push(dynamicName.toLowerCase());
+            }
+            
+            // Check if any name matches
+            isMentionedInGroup = namesToCheck.some(name => messageBody.includes(name));
             
             if (isMentionedInGroup) {
-                console.log(`[Webhook] Bot mentioned in group by ${payload.participant || payload.from}`);
+                console.log(`[Webhook] Bot mentioned by NAME in group: "${payload.body}"`);
             }
+        }
+        
+        if (isMentionedInGroup && !payload.body?.toLowerCase().includes(process.env.BOT_MENTION_NAMES?.toLowerCase().split(',')[0] || 'clara')) {
+             console.log(`[Webhook] Bot mentioned in group (via @tag or alias)`);
         }
     }
     
@@ -101,7 +126,7 @@ export async function POST(req: Request) {
         // Check temporary access from session state
         let hasTempAccess = false;
         if (!hasPermanentAccess && sender) {
-            const session = await sessionManager.getSession(chatId);
+            // Session already fetched above
             if (session && session.sessionState) {
                 const sessionState = session.sessionState as any;
                 const tempUsers = sessionState.temporaryAllowedUsers?.[chatId] || [];
