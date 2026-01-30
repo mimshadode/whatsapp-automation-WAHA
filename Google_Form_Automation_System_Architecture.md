@@ -701,14 +701,14 @@ const message = await redis.brpop("message_queue", 0);
      "text": "Great! I'll help you register. What's your full name?"
    }
    ↓
-8. User responds: "My name is Clarabit Doe"
+8. User responds: "My name is Clarahexa Doe"
    ↓
 9. Repeat steps 2-7 until all fields collected
    ↓
 10. Final Confirmation:
     "Please confirm your details:
-    Name: Clarabit Doe
-    Email: Clarabit@example.com
+    Name: Clarahexa Doe
+    Email: Clarahexa@example.com
     Phone: +1234567890
 
     Reply 'CONFIRM' to submit or 'EDIT' to make changes"
@@ -950,7 +950,7 @@ Request:
   "answers": [
     {
       "itemId": "12345",
-      "value": "Clarabit Doe"
+      "value": "Clarahexa Doe"
     }
   ]
 }
@@ -2099,10 +2099,10 @@ import { processMessage } from "@/lib/message-processor";
 
 describe("Message Processor", () => {
   it("should extract email from message", async () => {
-    const message = "My email is Clarabit@example.com";
+    const message = "My email is Clarahexa@example.com";
     const result = await processMessage(message);
 
-    expect(result.extracted_fields.email).toBe("Clarabit@example.com");
+    expect(result.extracted_fields.email).toBe("Clarahexa@example.com");
   });
 
   it("should handle missing fields", async () => {

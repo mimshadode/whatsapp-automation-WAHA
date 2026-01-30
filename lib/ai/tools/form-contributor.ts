@@ -31,7 +31,7 @@ export class FormContributorTool implements AITool {
       
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        const errorPrompt = `Inform the user that you couldn't find a valid email in their request: "${query}". Suggest they provide an email, e.g., "tambahkan email joni@gmail.com". Use the same language as the query. No bold formatting.`;
+        const errorPrompt = `Inform the user that you couldn't find a valid email in their request: "${query}". Suggest they provide an email, e.g., "tambahkan email Clara@gmail.com". Use the same language as the query. No bold formatting.`;
         const errorReply = await this.biznet.generateSpecificResponse(errorPrompt, query);
         return {
           success: false,
