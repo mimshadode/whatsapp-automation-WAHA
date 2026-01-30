@@ -365,9 +365,12 @@ export class GoogleFormsOAuthClient {
    */
   async addQuestions(formId: string, questions: FormQuestion[]) {
     try {
-      // 1. Get current form to find index? Or just append (index not specified = append)
-      // We will append by default.
+      // 1. Fetch form to get current item count (needed for location index)
+      const form = await this.forms.forms.get({ formId });
+      const currentItemCount = form.data.items ? form.data.items.length : 0;
       
+      console.log(`[GoogleFormsOAuth] Adding ${questions.length} items to form ${formId} (Current count: ${currentItemCount})`);
+
       const requests: any[] = [];
       
       questions.forEach((q, index) => {
@@ -387,25 +390,14 @@ export class GoogleFormsOAuthClient {
           };
         }
         
-        // No location = append to end
+        // Append to the end
+        // Location index = current count + index of new item
         requests.push({
           createItem: {
              item: item,
-             location: { index: index } // Relative index? No, API requires absolute.
-             // If we omit location, it appends to the end.
-             // But if we send multiple, order matters.
-             // Actually, "location" in "createItem" is where to insert. 
-             // If omitted, it adds to the end.
-             // IMPORTANT: Batch requests are processed in order.
-             // If we rely on default "append", it should be fine.
+             location: { index: currentItemCount + index }
           }
         });
-        
-        // FIX: The batchUpdate index handling in Google Forms API is tricky.
-        // If we want to append efficiently in order, we can omit location for the first one,
-        // then omit for the second?
-        // Actually, let's just NOT specify location so it appends to end.
-        delete requests[requests.length - 1].createItem.location;
       });
 
       if (requests.length > 0) {
