@@ -312,7 +312,7 @@ export class GoogleFormsOAuthClient {
       const response = await this.drive.files.list({
         q: `mimeType = 'application/vnd.google-apps.form' and name contains '${name}' and trashed = false`,
         fields: 'files(id, name, createdTime)',
-        orderBy: 'createdTime desc', // Prefer usage of most recent? Or maybe relevance?
+        orderBy: 'createdTime desc', 
         pageSize: 5
       });
 
@@ -327,7 +327,26 @@ export class GoogleFormsOAuthClient {
       return files[0].id || null;
     } catch (error: any) {
       console.error('[GoogleFormsOAuth] Error searching form by name:', error.message);
-      return null; // Don't throw, just return null so tool can ask for clarification
+      return null; 
+    }
+  }
+
+  /**
+   * List recent forms for syncing
+   */
+  async listForms(limit: number = 20) {
+    try {
+      console.log('[GoogleFormsOAuth] Listing recent forms from Drive...');
+      const response = await this.drive.files.list({
+          q: "mimeType = 'application/vnd.google-apps.form' and trashed = false",
+          fields: 'files(id, name, createdTime, description)', // Note: description might not be directly available in Drive file metadata easily
+          orderBy: 'createdTime desc',
+          pageSize: limit
+      });
+      return response.data.files || [];
+    } catch (error: any) {
+       console.error('[GoogleFormsOAuth] Error listing forms:', error.message);
+       throw error;
     }
   }
 

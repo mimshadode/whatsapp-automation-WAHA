@@ -139,6 +139,39 @@ export class TinyURLClient {
   }
 
   /**
+   * Create a short URL with smart alias generation from title
+   */
+  async shortestUrl(longUrl: string, title?: string): Promise<{ success: boolean; shortUrl?: string; alias?: string; error?: string }> {
+     try {
+       let alias: string | undefined;
+       
+       if (title) {
+         // Create smart alias from title
+         alias = title
+           .toLowerCase()
+           .replace(/[^a-z0-9]/g, '-') // Replace non-alphanumeric with hyphen
+           .replace(/-+/g, '-')        // Collapse multiple hyphens
+           .replace(/^-|-$/g, '');     // Trim hyphens
+           
+         // Limit length
+         if (alias.length > 25) {
+            alias = alias.substring(0, 25).replace(/-$/, '');
+         }
+       }
+       
+       const shortUrl = await this.shorten(longUrl, alias);
+       
+       if (shortUrl === longUrl) {
+          return { success: false, error: 'Failed to shorten URL (returned original)' };
+       }
+       
+       return { success: true, shortUrl, alias };
+     } catch (error: any) {
+        return { success: false, error: error.message };
+     }
+  }
+
+  /**
    * Create a short URL without custom alias (random)
    * @param longUrl - The URL to shorten
    * @returns Shortened URL
