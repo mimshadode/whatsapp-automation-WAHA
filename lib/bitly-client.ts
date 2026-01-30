@@ -13,6 +13,13 @@ export class BitlyClient {
     }
   }
 
+  private get headers() {
+    return {
+      'Authorization': `Bearer ${this.accessToken}`,
+      'Content-Type': 'application/json'
+    };
+  }
+
   /**
    * Get the primary group GUID for the user
    */
@@ -156,5 +163,51 @@ export class BitlyClient {
       console.error('[BitlyClient] Error in createCustomBitlink:', error.message);
       return longUrl;
     }
+  }
+
+  /**
+   * Generate an authenticated QR code image URL for a bitlink
+   * Returns a URL string that can be shared or used as a source
+   */
+  async generateBitlyQR(bitlinkId: string): Promise<string | null> {
+    if (!this.accessToken) return null;
+
+    try {
+      const groupGuid = await this.getGroupGuid();
+      if (!groupGuid) return null;
+
+      const bitlinkIdClean = bitlinkId.replace(/^https?:\/\//, '');
+
+      console.log(`[BitlyClient] Generating Bitly QR for: ${bitlinkIdClean}`);
+
+      // 1. Create QR Code resource
+      const response = await axios.post(
+        `${this.baseUrl}/qr-codes`,
+        {
+          group_guid: groupGuid,
+          title: `QR for ${bitlinkIdClean}`,
+          destination: {
+            bitlink_id: bitlinkIdClean
+          }
+        },
+        { headers: this.headers }
+      );
+
+      const qrcodeId = response.data.id;
+      // Note: We return the image URL. Warning: This URL might require Auth to view in browser,
+      // but serving as a link is what the user requested.
+      return `https://api-ssl.bitly.com/v4/qr-codes/${qrcodeId}/image?format=png`;
+
+    } catch (error: any) {
+      console.error('[BitlyClient] Error generating Bitly QR:', error.response?.data || error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Fallback QR Code generation using qrserver.com (public, no auth)
+   */
+  async generatePublicQR(url: string): Promise<string> {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
   }
 }

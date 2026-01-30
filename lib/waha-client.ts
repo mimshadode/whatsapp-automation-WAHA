@@ -118,18 +118,25 @@ export class WAHAClient {
 
   async sendImage(chatId: string, imageUrl: string, caption: string) {
     try {
-        // Note: Check strict API spec for sendImage if file/url param differs
+      // If it's a data URL, determine mimetype from it, otherwise default to image/png
+      let mimeType = 'image/png';
+      if (imageUrl.startsWith('data:')) {
+        const match = imageUrl.match(/^data:([^;]+);/);
+        if (match) mimeType = match[1];
+      }
+
       const response = await this.client.post('/api/sendImage', {
         session: this.sessionName,
         chatId,
         file: {
-            url: imageUrl
+            url: imageUrl,
+            mimetype: mimeType
         },
         caption,
       });
       return response.data;
-    } catch (error) {
-      console.error('[WAHA Client] Error sending image:', error);
+    } catch (error: any) {
+      console.error('[WAHA Client] Error sending image:', error.response?.data || error.message);
       throw error;
     }
   }

@@ -402,7 +402,6 @@ export async function POST(req: Request) {
     // Save assistant message
     await sessionManager.saveMessage(chatId, 'assistant', replyText);
 
-    // Determine mentions for reply
     const mentions: string[] = [];
     if (chatId.includes('@g.us')) {
         // In groups, mention the sender
@@ -413,9 +412,16 @@ export async function POST(req: Request) {
         }
     }
 
+    // --- QR CODE HANDLING (TEXT FALLBACK FOR NON-PLUS WAHA) ---
+    let finalReplyText = replyText;
+    if (response.newState?.lastFormQrUrl) {
+        finalReplyText += `\n\n🖼️ *QR Code Link:* \n${response.newState.lastFormQrUrl}`;
+    }
+
     console.log(`[Webhook] Sending response via WAHA to ${chatId}... (MsgID: ${messageId})`);
-    await waha.sendText(chatId, replyText, messageId, mentions);
-    console.log(`[Webhook] Response sent successfully.`);
+    await waha.sendText(chatId, finalReplyText, messageId, mentions);
+    
+    console.log(`[Webhook] Response process completed.`);
 
 
     return NextResponse.json({ status: 'success' });

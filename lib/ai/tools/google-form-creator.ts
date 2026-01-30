@@ -138,6 +138,11 @@ export class GoogleFormCreatorTool implements AITool {
       }
 
       const shortUrl = await this.bitly.shorten(result.url || '', customKeyword);
+      
+      // Generate QR Code
+      console.log(`[GoogleFormTool] Generating QR code for: ${shortUrl}`);
+      const qrCode = await this.bitly.generateBitlyQR(shortUrl) || await this.bitly.generatePublicQR(shortUrl);
+      
       // Public links are shortened, direct links for edit and spreadsheet are kept original as requested
       const editUrl = result.editUrl;
       const spreadsheetUrl = result.spreadsheetUrl;
@@ -210,6 +215,7 @@ export class GoogleFormCreatorTool implements AITool {
         newState: { 
           lastFormId: result.formId,
           lastFormUrl: shortUrl,
+          lastFormQrUrl: qrCode,
           lastFormEditUrl: editUrl,
           lastSpreadsheetUrl: spreadsheetUrl,
           createdForms: [...createdForms, newFormEntry] 
